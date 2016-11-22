@@ -8,6 +8,7 @@ using Funq;
 using NUnit.Framework;
 using ServiceStack.Host;
 using ServiceStack.Text;
+using ServiceStack.Web;
 using ServiceStack.WebHost.Endpoints.Tests.Support;
 using ServiceStack.WebHost.Endpoints.Tests.Support.Host;
 
@@ -86,12 +87,38 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
     }
 
+    public class ThrowsInFilterAttribute : RequestFilterAttribute
+    {
+        public override void Execute(IRequest req, IResponse res, object requestDto)
+        {
+            var dto = (ThrowsInFilter)requestDto;
+
+            var status = (HttpStatusCode)dto.StatusCode.GetValueOrDefault(400);
+            var errorMsg = dto.Message ?? nameof(ThrowsInFilter);
+
+            if (dto.ExceptionType == nameof(HttpError))
+                throw new HttpError(status, errorMsg);
+
+            throw new Exception(errorMsg);
+        }
+    }
+
+    public class ThrowsInFilter : IReturn<ThrowsInFilter>
+    {
+        public string ExceptionType { get; set; }
+        public string Message { get; set; }
+        public int? StatusCode { get; set; }
+    }
+
+    [ThrowsInFilter]
+    public class ThrowsInFilterService : Service
+    {
+        public object Any(ThrowsInFilter request) => request;
+    }
+
     [TestFixture]
     public abstract class RequestFiltersTests
     {
-        private const string ListeningOn = "http://localhost:82/";
-        private const string ServiceClientBaseUri = "http://localhost:82/";
-
         private const string AllowedUser = "user";
         private const string AllowedPass = "p@55word";
 
@@ -101,7 +128,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             private Guid currentSessionGuid;
 
             public RequestFiltersAppHostHttpListener()
-                : base("Request Filters Tests", typeof(GetFactorialService).Assembly) { }
+                : base("Request Filters Tests", typeof(GetFactorialService).GetAssembly()) { }
 
             public override void Configure(Container container)
             {
@@ -149,15 +176,17 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         RequestFiltersAppHostHttpListener appHost;
 
-        [TestFixtureSetUp]
+        string ServiceClientBaseUri = Config.ListeningOn;
+
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new RequestFiltersAppHostHttpListener();
             appHost.Init();
-            appHost.Start(ListeningOn);
+            appHost.Start(Config.ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();
@@ -173,6 +202,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         private static void Assert401(IServiceClient client, WebServiceException ex)
         {
+#if !NETCORE            
             if (client is Soap11ServiceClient || client is Soap12ServiceClient)
             {
                 if (ex.StatusCode != 401)
@@ -181,7 +211,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 }
                 return;
             }
-
+#endif
             Console.WriteLine(ex);
             Assert.That(ex.StatusCode, Is.EqualTo(401));
         }
@@ -204,8 +234,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var format = GetFormat();
             if (format == null) return;
 
-            var req = (HttpWebRequest)WebRequest.Create(
-                string.Format("http://localhost:82/{0}/reply/Secure", format));
+            var req = (HttpWebRequest)WebRequest.Create(ServiceClientBaseUri.CombineWith("{0}/reply/Secure".Fmt(format)));
 
             req.Headers[HttpHeaders.Authorization]
                 = "basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes(AllowedUser + ":" + AllowedPass));
@@ -249,8 +278,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var format = GetFormat();
             if (format == null) return;
 
-            var req = (HttpWebRequest)WebRequest.Create(
-                string.Format("{0}{1}/reply/Insecure", ServiceClientBaseUri, format));
+            var req = (HttpWebRequest)WebRequest.Create($"{ServiceClientBaseUri}{format}/reply/Insecure");
 
             req.Headers[HttpHeaders.Authorization]
                 = "basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes(AllowedUser + ":" + AllowedPass));
@@ -292,8 +320,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var format = GetFormat();
             if (format == null) return;
 
-            var req = (HttpWebRequest)WebRequest.Create(
-                string.Format("http://localhost:82/{0}/reply/Secure", format));
+            var req = (HttpWebRequest)WebRequest.Create(ServiceClientBaseUri.CombineWith("{0}/reply/Secure".Fmt(format)));
 
             req.Headers[HttpHeaders.Authorization]
                 = "basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes(AllowedUser + ":" + AllowedPass));
@@ -302,9 +329,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var cookie = res.Cookies["ss-session"];
             if (cookie != null)
             {
-                req = (HttpWebRequest)WebRequest.Create(
-                    string.Format("http://localhost:82/{0}/reply/Secure", format));
-                req.CookieContainer.Add(new Cookie("ss-session", cookie.Value));
+                req = (HttpWebRequest)WebRequest.Create(ServiceClientBaseUri.CombineWith("{0}/reply/Secure".Fmt(format)));
+                req.CookieContainer.Add(new Uri(ServiceClientBaseUri), new Cookie("ss-session", cookie.Value));
 
                 var dtoString = new StreamReader(req.GetResponse().GetResponseStream()).ReadToEnd();
                 Assert.That(dtoString.Contains("Confidential"));
@@ -318,11 +344,10 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var format = GetFormat();
             if (format == null) return;
 
-            var req = (HttpWebRequest)WebRequest.Create(
-                string.Format("http://localhost:82/{0}/reply/Secure", format));
+            var req = (HttpWebRequest)WebRequest.Create(ServiceClientBaseUri.CombineWith("{0}/reply/Secure".Fmt(format)));
 
             req.CookieContainer = new CookieContainer();
-            req.CookieContainer.Add(new Cookie("ss-session", AllowedUser + "/" + Guid.NewGuid().ToString("N"), "/", "localhost"));
+            req.CookieContainer.Add(new Uri("http://localhost"), new Cookie("ss-session", AllowedUser + "/" + Guid.NewGuid().ToString("N"), "/", "localhost"));
 
             try
             {
@@ -350,6 +375,48 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 return;
             }
             Assert.Fail("Should throw WebServiceException.StatusCode == 401");
+        }
+
+        [Test]
+        public async Task Does_populate_ResponseStatus_when_Exception_thrown_in_RequestFilter()
+        {
+            var client = CreateNewRestClientAsync();
+            if (client == null) return;
+
+            try
+            {
+                var response = await client.PostAsync(new ThrowsInFilter
+                {
+                    StatusCode = 409,
+                    ExceptionType = nameof(HttpError),
+                    Message = "POST HttpError CONFLICT",
+                });
+
+                Assert.Fail("Should throw");
+            }
+            catch (WebServiceException ex)
+            {
+                Assert.That(ex.StatusCode, Is.EqualTo(409));
+                Assert.That(ex.ResponseStatus.ErrorCode, Is.EqualTo("Conflict"));
+                Assert.That(ex.ResponseStatus.Message, Is.EqualTo("POST HttpError CONFLICT"));
+            }
+
+            try
+            {
+                var response = await client.PostAsync(new ThrowsInFilter
+                {
+                    ExceptionType = nameof(Exception),
+                    Message = "POST Generic Exception",
+                });
+
+                Assert.Fail("Should throw");
+            }
+            catch (WebServiceException ex)
+            {
+                Assert.That(ex.StatusCode, Is.EqualTo(500));
+                Assert.That(ex.ResponseStatus.ErrorCode, Is.EqualTo("Exception"));
+                Assert.That(ex.ResponseStatus.Message, Is.EqualTo("POST Generic Exception"));
+            }
         }
 
         [Test]
@@ -434,7 +501,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             protected override IRestClientAsync CreateNewRestClientAsync()
             {
                 return null; //TODO implement REST calls with DirectServiceClient (i.e. Unit Tests)
-                //EndpointHandlerBase.ServiceManager = new ServiceManager(true, typeof(SecureService).Assembly);
+                //EndpointHandlerBase.ServiceManager = new ServiceManager(true, typeof(SecureService).GetAssembly());
                 //return new DirectServiceClient(EndpointHandlerBase.ServiceManager);
             }
         }
@@ -495,7 +562,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
         }
 
-#if !IOS
+#if !(IOS || NETCORE)
 
         [TestFixture]
         public class Soap11IntegrationTests : RequestFiltersTests

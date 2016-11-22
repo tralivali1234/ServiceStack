@@ -6,10 +6,10 @@ using ServiceStack.WebHost.IntegrationTests.Services;
 
 namespace ServiceStack.WebHost.IntegrationTests.Tests
 {
-	[TestFixture]
-	public class CachedServiceTests
-	{
-        [TestFixtureSetUp]
+    [TestFixture]
+    public class CachedServiceTests
+    {
+        [OneTimeSetUp]
         public void OnBeforeEachTest()
         {
             var jsonClient = new JsonServiceClient(Config.ServiceStackBaseUri);
@@ -48,11 +48,11 @@ namespace ServiceStack.WebHost.IntegrationTests.Tests
         }
 
         [Test]
-		public void Can_call_Cached_WebService_with_JSONP()
-		{
-			var url = Config.ServiceStackBaseUri.CombineWith("/cached/movies?callback=cb");
-			var jsonp = url.GetJsonFromUrl();
-			Assert.That(jsonp.StartsWith("cb("));
-		}
-	}
+        public void Can_call_Cached_WebService_with_JSONP()
+        {
+            var url = Config.ServiceStackBaseUri.CombineWith("/cached/movies?callback=cb");
+            var jsonp = url.GetJsonFromUrl();
+            Assert.That(jsonp.StartsWith("cb("));
+        }
+    }
 }

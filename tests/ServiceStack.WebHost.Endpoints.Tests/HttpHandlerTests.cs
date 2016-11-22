@@ -54,7 +54,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -65,17 +65,19 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         public class HttpHandlerAppHost : AppSelfHostBase
         {
-            public HttpHandlerAppHost() : base("HttpHandlerAppHost", typeof(PerfServices).Assembly) { }
+            public HttpHandlerAppHost() : base("HttpHandlerAppHost", typeof(PerfServices).GetAssembly()) { }
 
             public override void Configure(Container container)
             {
             }
 
+#if !NETCORE_SUPPORT
             protected override void OnBeginRequest(HttpListenerContext context)
             {
                 Interlocked.Increment(ref BeginRequestCount);
                 base.OnBeginRequest(context);
             }
+#endif
 
             public override void OnEndRequest(IRequest request = null)
             {
@@ -91,6 +93,9 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
 
         [Test]
+#if NETCORE
+        [Ignore("NotFoundHttpHandler is not used in .NET Core and is skipped in AppSelfHostBase.ProcessRequest")]
+#endif
         public void Does_call_begin_and_end_on_Raw_HttpHandler_requests()
         {
             try
@@ -101,7 +106,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
             catch (WebException ex)
             {
-                Assert.That(ex.Message, Is.StringContaining("(404) Not Found"));
+                Assert.That(ex.Message, Does.Contain("(404) Not Found"));
 
                 Assert.That(BeginRequestCount, Is.EqualTo(1));
                 Thread.Sleep(1);

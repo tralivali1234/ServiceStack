@@ -84,25 +84,26 @@ namespace ServiceStack.ServiceHost.Tests
                 var requestType = typeof(GenericService<>).GetGenericArguments()[0];
                 var exception = Assert.Throws<NotImplementedException>(() => appHost.ServiceController.GetService(requestType));
 
-                Assert.That(exception.Message, Is.StringContaining("Unable to resolve service"));
+                Assert.That(exception.Message, Does.Contain("Unable to resolve service"));
             }
         }
 
         [Test]
         public void Generic_service_with_recursive_ceneric_type_should_not_get_registered()
         {
-            using (var appHost = new BasicAppHost {
-                UseServiceController = x => 
+            using (var appHost = new BasicAppHost
+            {
+                UseServiceController = x =>
                     new ServiceController(x, () => new[] {
                         typeof(GenericService<>).MakeGenericType(new[] { typeof(Generic3<>) })
                     })
-                }.Init())
+            }.Init())
             {
                 // Tell manager to register GenericService<Generic3<>>, which should not be possible since Generic3<> is an open type
-                var exception = Assert.Throws<System.NotImplementedException>(() => 
+                var exception = Assert.Throws<System.NotImplementedException>(() =>
                     appHost.ServiceController.GetService(typeof(Generic3<>)));
 
-                Assert.That(exception.Message, Is.StringContaining("Unable to resolve service"));
+                Assert.That(exception.Message, Does.Contain("Unable to resolve service"));
             }
         }
 

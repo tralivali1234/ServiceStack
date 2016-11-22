@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
@@ -189,6 +190,16 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
     }
 
+    public class ErrorStream {}
+    public class ErrorStreamService : Service
+    {
+        [AddHeader(ContentType = "application/pdf")]
+        public Stream Any(ErrorStream request)
+        {
+            throw new NotImplementedException("Exception in Stream Response");
+        }
+    }
+
     [TestFixture]
     public class ExceptionHandlingTests
     {
@@ -199,7 +210,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         {
 
             public ExceptionHandlingAppHostHttpListener()
-                : base("Exception handling tests", typeof(UserService).Assembly) { }
+                : base("Exception handling tests", typeof(UserService).GetAssembly()) { }
 
             public override void Configure(Container container)
             {
@@ -243,7 +254,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         ExceptionHandlingAppHostHttpListener appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new ExceptionHandlingAppHostHttpListener();
@@ -251,7 +262,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             appHost.Start(ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();
@@ -280,8 +291,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
             catch (WebServiceException ex)
             {
-                Assert.That(ex.ErrorCode, Is.EqualTo("CanNotExecute"));
                 Assert.That(ex.StatusCode, Is.EqualTo((int)System.Net.HttpStatusCode.BadRequest));
+                Assert.That(ex.ErrorCode, Is.EqualTo("CanNotExecute"));
                 Assert.That(ex.Message, Is.EqualTo("CanNotExecute"));
             }
         }
@@ -296,8 +307,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
             catch (WebServiceException ex)
             {
-                Assert.That(ex.ErrorCode, Is.EqualTo("CanNotExecute"));
                 Assert.That(ex.StatusCode, Is.EqualTo((int)System.Net.HttpStatusCode.BadRequest));
+                Assert.That(ex.ErrorCode, Is.EqualTo("CanNotExecute"));
                 Assert.That(ex.Message, Is.EqualTo("CanNotExecute"));
             }
         }
@@ -312,8 +323,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
             catch (WebServiceException ex)
             {
-                Assert.That(ex.ErrorCode, Is.EqualTo("CanNotExecute"));
                 Assert.That(ex.StatusCode, Is.EqualTo((int)System.Net.HttpStatusCode.Forbidden));
+                Assert.That(ex.ErrorCode, Is.EqualTo("CanNotExecute"));
                 Assert.That(ex.Message, Is.EqualTo("CanNotExecute"));
             }
         }
@@ -332,6 +343,23 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 Assert.That(!ex.IsAny500());
                 Assert.That(ex.ErrorCode, Is.EqualTo("ArgumentException"));
                 Assert.That(ex.StatusCode, Is.EqualTo((int)System.Net.HttpStatusCode.BadRequest));
+            }
+        }
+
+        [Test, TestCaseSource("ServiceClients")]
+        public void Handles_Exception_in_Stream_Response(IRestClient client)
+        {
+            try
+            {
+                var response = client.Get<Stream>(new ErrorStream());
+                Assert.Fail();
+            }
+            catch (WebServiceException ex)
+            {
+                Assert.That(ex.IsAny400());
+                Assert.That(!ex.IsAny500());
+                Assert.That(ex.ErrorCode, Is.EqualTo("NotImplementedException"));
+                Assert.That(ex.StatusCode, Is.EqualTo((int)System.Net.HttpStatusCode.MethodNotAllowed));
             }
         }
 
@@ -387,7 +415,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             {
                 var errorResponse = ((HttpWebResponse)webEx.Response);
                 var body = errorResponse.GetResponseStream().ReadFully().FromUtf8Bytes();
-                Assert.That(body, Is.StringStarting("{\"responseStatus\":{\"errorCode\":\"CustomException\",\"message\":\"User Defined Error\""));
+                Assert.That(body, Does.StartWith("{\"responseStatus\":{\"errorCode\":\"CustomException\",\"message\":\"User Defined Error\""));
             }
         }
 
@@ -403,7 +431,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             {
                 var errorResponse = ((HttpWebResponse)webEx.Response);
                 var body = errorResponse.GetResponseStream().ReadFully().FromUtf8Bytes();
-                Assert.That(body, Is.StringStarting("{\"responseStatus\":{\"errorCode\":\"CustomException\",\"message\":\"User Defined Error\""));
+                Assert.That(body, Does.StartWith("{\"responseStatus\":{\"errorCode\":\"CustomException\",\"message\":\"User Defined Error\""));
             }
 
             try
@@ -419,7 +447,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 Assert.That(ex.StatusDescription, Is.EqualTo(typeof(CustomException).Name));
                 Assert.That(ex.ErrorCode, Is.EqualTo(typeof(CustomException).Name));
                 Assert.That(ex.ErrorMessage, Is.EqualTo("User Defined Error"));
-                Assert.That(ex.ResponseBody, Is.StringStarting("{\"responseStatus\":{\"errorCode\":\"CustomException\",\"message\":\"User Defined Error\""));
+                Assert.That(ex.ResponseBody, Does.StartWith("{\"responseStatus\":{\"errorCode\":\"CustomException\",\"message\":\"User Defined Error\""));
             }
         }
 

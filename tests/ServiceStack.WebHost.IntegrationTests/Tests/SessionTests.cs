@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Collections.Specialized;
 using System.IO;
 using System.Web;
-using Funq;
 using NUnit.Framework;
-using ServiceStack.Caching;
-using ServiceStack.Host.AspNet;
 using ServiceStack.Testing;
 
 namespace ServiceStack.WebHost.IntegrationTests.Tests
@@ -27,13 +23,11 @@ namespace ServiceStack.WebHost.IntegrationTests.Tests
         {
             using (new BasicAppHost().Init())
             {
-                SessionFeature.VerifyCachedSessionId = false;
-
                 HttpContext.Current = new HttpContext(
                     new HttpRequest(null, "http://example.com", null),
                     new HttpResponse(new StringWriter()));
 
-                HttpContext.Current.Items[SessionFeature.RequestItemsSessionKey] =
+                HttpContext.Current.Items[Keywords.Session] =
                     new AuthUserSession
                     {
                         Id = "mock-session-id",
@@ -41,8 +35,6 @@ namespace ServiceStack.WebHost.IntegrationTests.Tests
 
                 var httpReq = HttpContext.Current.ToRequest();
                 var session = httpReq.GetSession();
-
-                SessionFeature.VerifyCachedSessionId = true;
 
                 Assert.That(session, Is.Not.Null);
                 Assert.That(session.Id, Is.EqualTo("mock-session-id"));

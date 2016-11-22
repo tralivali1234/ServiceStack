@@ -11,7 +11,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
     public class BasicEncryptedMessagesAppHost : AppSelfHostBase
     {
         public BasicEncryptedMessagesAppHost()
-            : base(typeof(BasicEncryptedMessagesAppHost).Name, typeof(BasicEncryptedMessagesService).Assembly) { }
+            : base(typeof(BasicEncryptedMessagesAppHost).Name, typeof(BasicEncryptedMessagesService).GetAssembly()) { }
 
         public override void Configure(Container container)
         {
@@ -77,7 +77,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
                 .Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

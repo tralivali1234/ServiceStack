@@ -1,3 +1,4 @@
+#if !NETSTANDARD1_6
 #region License
 // Copyright (c) Jeremy Skinner (http://www.jeremyskinner.co.uk)
 // 
@@ -147,6 +148,8 @@ namespace FluentValidation.Mvc {
             set { throw new NotImplementedException(); }
         }
 
+        public Severity Severity { get; set; }
+
         public Attribute ToAttribute()
         {
             return attribute;
@@ -274,3 +277,4 @@ namespace FluentValidation.Mvc.MetadataExtensions
         }
     }
 }
+#endif

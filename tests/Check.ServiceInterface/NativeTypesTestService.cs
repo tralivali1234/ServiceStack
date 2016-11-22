@@ -13,6 +13,11 @@ namespace Check.ServiceInterface
             public string Name { get; set; }
         }
 
+        public object Any(HelloACodeGenTest request)
+        {
+            return new HelloACodeGenTestResponse { FirstResult = request.FirstField };
+        }
+
         public object Any(HelloInService request)
         {
             return new HelloResponse { Result = request.Name };
@@ -159,6 +164,11 @@ namespace Check.ServiceInterface
             };
         }
 
+        public object Any(HelloStruct request)
+        {
+            return request;
+        }
+
         public object Any(HelloSession request)
         {
             return new HelloSessionResponse
@@ -255,6 +265,33 @@ namespace Check.ServiceInterface
         {
             return request.GetType().Name;
         }
+
+        public object Any(ExcludeMetadata request)
+        {
+            return request;
+        }
+
+        public object Any(RestrictLocalhost request)
+        {
+            return request;
+        }
+
+        public object Any(RestrictInternal request)
+        {
+            return request;
+        }
+
+        public object Any(RestrictExternal request)
+        {
+            return request;
+        }
+
+        public object Any(IgnoreInMetadataConfig request)
+        {
+            return request;
+        }
+
+        public object Any(HelloTuple request) => request;
     }
 
     public class GetUserSession : IReturn<CustomUserSession>

@@ -12,10 +12,13 @@ namespace ServiceStack.NativeTypes.VbNet
     public class VbNetGenerator
     {
         readonly MetadataTypesConfig Config;
+        readonly NativeTypesFeature feature;
+        private List<MetadataType> allTypes;
 
         public VbNetGenerator(MetadataTypesConfig config)
         {
             Config = config;
+            feature = HostContext.GetPlugin<NativeTypesFeature>();
         }
 
         public static Dictionary<string, string> TypeAliases = new Dictionary<string, string>
@@ -67,6 +70,10 @@ namespace ServiceStack.NativeTypes.VbNet
             "Class"
         };
 
+        public static Func<List<MetadataType>, List<MetadataType>> FilterTypes = DefaultFilterTypes;
+
+        public static List<MetadataType> DefaultFilterTypes(List<MetadataType> types) => types;
+
         public string GetCode(MetadataTypes metadata, IRequest request)
         {
             var namespaces = Config.GetDefaultNamespaces(metadata);
@@ -76,7 +83,11 @@ namespace ServiceStack.NativeTypes.VbNet
             if (Config.GlobalNamespace == null)
             {
                 metadata.Types.Each(x => namespaces.Add(x.Namespace));
-                metadata.Operations.Each(x => namespaces.Add(x.Request.Namespace));
+                metadata.Operations.Each(x => {
+                    namespaces.Add(x.Request.Namespace);
+                    if (x.Response != null)
+                        namespaces.Add(x.Response.Namespace);
+                });
             }
             else
             {
@@ -86,7 +97,8 @@ namespace ServiceStack.NativeTypes.VbNet
             Func<string, string> defaultValue = k =>
                 request.QueryString[k].IsNullOrEmpty() ? "'''" : "'";
 
-            var sb = new StringBuilderWrapper(new StringBuilder());
+            var sbInner = new StringBuilder();
+            var sb = new StringBuilderWrapper(sbInner);
             sb.AppendLine("' Options:");
             sb.AppendLine("'Date: {0}".Fmt(DateTime.Now.ToString("s").Replace("T", " ")));
             sb.AppendLine("'Version: {0}".Fmt(Env.ServiceStackVersion));
@@ -105,10 +117,11 @@ namespace ServiceStack.NativeTypes.VbNet
             sb.AppendLine("{0}AddResponseStatus: {1}".Fmt(defaultValue("AddResponseStatus"), Config.AddResponseStatus));
             sb.AppendLine("{0}AddImplicitVersion: {1}".Fmt(defaultValue("AddImplicitVersion"), Config.AddImplicitVersion));
             sb.AppendLine("{0}InitializeCollections: {1}".Fmt(defaultValue("InitializeCollections"), Config.InitializeCollections));
+            sb.AppendLine("{0}ExportValueTypes: {1}".Fmt(defaultValue("ExportValueTypes"), Config.ExportValueTypes));
             sb.AppendLine("{0}IncludeTypes: {1}".Fmt(defaultValue("IncludeTypes"), Config.IncludeTypes.Safe().ToArray().Join(", ")));
             sb.AppendLine("{0}ExcludeTypes: {1}".Fmt(defaultValue("ExcludeTypes"), Config.ExcludeTypes.Safe().ToArray().Join(", ")));
+            sb.AppendLine("{0}AddNamespaces: {1}".Fmt(defaultValue("AddNamespaces"), Config.AddNamespaces.Safe().ToArray().Join(",")));
             sb.AppendLine("{0}AddDefaultXmlNamespace: {1}".Fmt(defaultValue("AddDefaultXmlNamespace"), Config.AddDefaultXmlNamespace));
-            //sb.AppendLine("{0}DefaultNamespaces: {1}".Fmt(defaultValue("DefaultNamespaces"), Config.DefaultNamespaces.ToArray().Join(", ")));
             sb.AppendLine();
 
             namespaces.Where(x => !string.IsNullOrEmpty(x))
@@ -143,15 +156,17 @@ namespace ServiceStack.NativeTypes.VbNet
                 .Select(x => x.Response).ToHashSet();
             var types = metadata.Types.ToHashSet();
 
-            var allTypes = new List<MetadataType>();
+            allTypes = new List<MetadataType>();
             allTypes.AddRange(requestTypes);
             allTypes.AddRange(responseTypes);
             allTypes.AddRange(types);
-            allTypes.RemoveAll(x => x.IgnoreType(Config));
 
             var orderedTypes = allTypes
                 .OrderBy(x => x.Namespace)
-                .ThenBy(x => x.Name);
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            orderedTypes = FilterTypes(orderedTypes);
 
             foreach (var type in orderedTypes)
             {
@@ -219,7 +234,7 @@ namespace ServiceStack.NativeTypes.VbNet
 
             sb.AppendLine();
 
-            return sb.ToString();
+            return StringBuilderCache.ReturnAndFree(sbInner);
         }
 
         private string AppendType(ref StringBuilderWrapper sb, MetadataType type, string lastNS, List<MetadataType> allTypes, CreateTypeOptions options)
@@ -340,11 +355,12 @@ namespace ServiceStack.NativeTypes.VbNet
         {
             if (type.IsInterface())
                 return;
-            if (Config.AddImplicitVersion == null && !Config.InitializeCollections)
+            var initCollections = feature.ShouldInitializeCollections(type, Config.InitializeCollections);
+            if (Config.AddImplicitVersion == null && !initCollections)
                 return;
 
             var collectionProps = new List<MetadataPropertyType>();
-            if (type.Properties != null && Config.InitializeCollections)
+            if (type.Properties != null && initCollections)
                 collectionProps = type.Properties.Where(x => x.IsCollection()).ToList();
 
             var addVersionInfo = Config.AddImplicitVersion != null && options.IsRequest;
@@ -392,8 +408,9 @@ namespace ServiceStack.NativeTypes.VbNet
                 {
                     if (wasAdded) sb.AppendLine();
 
-                    var propType = Type(prop.Type, prop.GenericArgs, includeNested:true);
-                    wasAdded = AppendDataMember(sb, prop.DataMember, dataMemberIndex++);
+                    var propType = Type(prop.GetTypeName(Config, allTypes), prop.GenericArgs, includeNested:true);
+                    wasAdded = AppendComments(sb, prop.Description);
+                    wasAdded = AppendDataMember(sb, prop.DataMember, dataMemberIndex++) || wasAdded;
                     wasAdded = AppendAttributes(sb, prop.Attributes) || wasAdded;
                     var visibility = type.IsInterface() ? "" : "Public ";
                     sb.AppendLine("{0}{1}Property {2} As {3}".Fmt(
@@ -412,7 +429,7 @@ namespace ServiceStack.NativeTypes.VbNet
                 if (wasAdded) sb.AppendLine();
                 wasAdded = true;
 
-                AppendDataMember(sb, null, dataMemberIndex++);
+                wasAdded = AppendDataMember(sb, null, dataMemberIndex++);
                 sb.AppendLine("Public {0}Property ResponseStatus As ResponseStatus".Fmt(@virtual));
             }
 
@@ -442,7 +459,7 @@ namespace ServiceStack.NativeTypes.VbNet
                 }
                 else
                 {
-                    var args = new StringBuilder();
+                    var args = StringBuilderCacheAlt.Allocate();
                     if (attr.ConstructorArgs != null)
                     {
                         foreach (var ctorArg in attr.ConstructorArgs)
@@ -461,7 +478,7 @@ namespace ServiceStack.NativeTypes.VbNet
                             args.Append("{0}:={1}".Fmt(attrArg.Name, TypeValue(attrArg.Type, attrArg.Value)));
                         }
                     }
-                    sb.AppendLine("<{0}({1})>".Fmt(attrName, args));
+                    sb.AppendLine("<{0}({1})>".Fmt(attrName, StringBuilderCacheAlt.ReturnAndFree(args)));
                 }
             }
 
@@ -479,7 +496,7 @@ namespace ServiceStack.NativeTypes.VbNet
             if (value.StartsWith("typeof("))
             {
                 //Only emit type as Namespaces are merged
-                var typeNameOnly = value.Substring(7, value.Length - 8).SplitOnLast('.').Last();
+                var typeNameOnly = value.Substring(7, value.Length - 8).LastRightPart('.');
                 return "GetType(" + typeNameOnly + ")";
             }
 
@@ -501,7 +518,7 @@ namespace ServiceStack.NativeTypes.VbNet
                 var parts = type.Split('`');
                 if (parts.Length > 1)
                 {
-                    var args = new StringBuilder();
+                    var args = StringBuilderCacheAlt.Allocate();
                     foreach (var arg in genericArgs)
                     {
                         if (args.Length > 0)
@@ -511,7 +528,7 @@ namespace ServiceStack.NativeTypes.VbNet
                     }
 
                     var typeName = NameOnly(type, includeNested: includeNested).SanitizeType();
-                    return "{0}(Of {1})".Fmt(typeName, args);
+                    return "{0}(Of {1})".Fmt(typeName, StringBuilderCacheAlt.ReturnAndFree(args));
                 }
             }
 
@@ -538,10 +555,10 @@ namespace ServiceStack.NativeTypes.VbNet
 
         public string NameOnly(string type, bool includeNested = false)
         {
-            var name = type.SplitOnFirst('`')[0];
+            var name = type.LeftPart('`');
 
             if (!includeNested)
-                name = name.SplitOnLast('.').Last();
+                name = name.LastRightPart('.');
 
             return name.SafeToken();
         }
@@ -551,19 +568,21 @@ namespace ServiceStack.NativeTypes.VbNet
             return KeyWords.Contains(name) ? "[{0}]".Fmt(name) : name;
         }
 
-        public void AppendComments(StringBuilderWrapper sb, string desc)
+        public bool AppendComments(StringBuilderWrapper sb, string desc)
         {
-            if (desc == null) return;
+            if (desc == null) return false;
 
             if (Config.AddDescriptionAsComments)
             {
                 sb.AppendLine("'''<Summary>");
                 sb.AppendLine("'''{0}".Fmt(desc.SafeComment()));
                 sb.AppendLine("'''</Summary>");
+                return false;
             }
             else
             {
                 sb.AppendLine("<Description({0})>".Fmt(desc.QuotedSafeValue()));
+                return true;
             }
         }
 

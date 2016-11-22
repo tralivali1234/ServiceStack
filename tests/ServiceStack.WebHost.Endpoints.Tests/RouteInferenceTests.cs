@@ -15,17 +15,17 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 	{
         ServiceStackHost appHost;
 
-		[TestFixtureSetUp]
+		[OneTimeSetUp]
 		public void InferRoutes()
 		{
             appHost = new BasicAppHost().Init();
             
             RouteNamingConvention.PropertyNamesToMatch.Add("Key");
 			RouteNamingConvention.AttributeNamesToMatch.Add(typeof(KeyAttribute).Name);
-            appHost.Routes.AddFromAssembly(typeof(RouteInferenceTests).Assembly);
+            appHost.Routes.AddFromAssembly(typeof(RouteInferenceTests).GetAssembly());
 		}
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

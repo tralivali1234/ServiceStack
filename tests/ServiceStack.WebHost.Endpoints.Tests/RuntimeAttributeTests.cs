@@ -39,7 +39,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     {
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new RuntimeAttributeAppHost()
@@ -47,7 +47,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();
@@ -56,7 +56,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public class RuntimeAttributeAppHost : AppSelfHostBase
         {
             public RuntimeAttributeAppHost()
-                : base(typeof(RuntimeAttributeTests).Name, typeof (RuntimeAttributeAppHost).Assembly)
+                : base(typeof(RuntimeAttributeTests).Name, typeof (RuntimeAttributeAppHost).GetAssembly())
             {
                 typeof(RuntimeAttributes)
                     .AddAttributes(new RuntimeAttributeRequestFilter());

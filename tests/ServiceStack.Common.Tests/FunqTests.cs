@@ -29,6 +29,6 @@ namespace ServiceStack.Common.Tests
             container.AutoWire(m);
             Assert.Throws<ResolutionException>(() => container.Resolve<IBar>());
             Assert.IsNull(m.Bar); // FAILS HERE
-        }         
+        }
     }
 }

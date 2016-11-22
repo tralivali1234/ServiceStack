@@ -14,7 +14,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public class SimpleAppHostHttpListener : AppHostHttpListenerBase {
             //Tell Service Stack the name of your application and where to find your web services
             public SimpleAppHostHttpListener()
-                : base("Test Services", typeof(SimpleAppHostHttpListener).Assembly) {
+                : base("Test Services", typeof(SimpleAppHostHttpListener).GetAssembly()) {
                 LogManager.LogFactory = new TestLogFactory();
             }
 
@@ -68,7 +68,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             
 		}
 
-		[TestFixtureSetUp]
+		[OneTimeSetUp]
 		public void OnTestFixtureStartUp() 
 		{
 			appHost = new SimpleAppHostHttpListener();
@@ -79,7 +79,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 			                         DateTime.Now, ListeningOn);
 		}
 
-		[TestFixtureTearDown]
+		[OneTimeTearDown]
 		public void OnTestFixtureTearDown()
 		{
 			appHost.Dispose();

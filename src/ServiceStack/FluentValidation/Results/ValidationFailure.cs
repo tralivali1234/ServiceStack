@@ -22,7 +22,7 @@ namespace ServiceStack.FluentValidation.Results
 {
     using System;
 
-#if !SL5
+#if !(SL5 || NETSTANDARD1_6)
     [Serializable]
 #endif
     public class ValidationFailure {
@@ -66,6 +66,11 @@ namespace ServiceStack.FluentValidation.Results
         /// Custom state associated with the failure.
         /// </summary>
         public object CustomState { get; set; }
+
+        /// <summary>
+ 		/// Custom severity level associated with the failure.
+ 		/// </summary>
+ 		public Severity Severity { get; set; }
 
         /// <summary>
         /// Placeholder values used for string substitution when building ErrorMessage

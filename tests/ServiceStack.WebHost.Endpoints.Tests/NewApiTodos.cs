@@ -8,7 +8,7 @@ namespace NewApi.Todos
 {
     public class AppHost : AppHostHttpListenerBase
     {
-        public AppHost() : base("TODOs Tests", typeof(Todo).Assembly) {}
+        public AppHost() : base("TODOs Tests", typeof(Todo).GetAssembly()) {}
 
         public override void Configure(Container container)
         {
@@ -106,7 +106,7 @@ namespace NewApi.Todos
 
         AppHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new AppHost();
@@ -114,7 +114,7 @@ namespace NewApi.Todos
             appHost.Start(BaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

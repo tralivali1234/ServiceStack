@@ -10,7 +10,7 @@ namespace NewApi.Customers
 {
     public class AppHost : AppSelfHostBase
     {
-        public AppHost() : base("Customer REST Example", typeof(CustomerService).Assembly) {}
+        public AppHost() : base("Customer REST Example", typeof(CustomerService).GetAssembly()) {}
 
         public override void Configure(Container container)
         {
@@ -111,7 +111,7 @@ namespace NewApi.Customers
 
         ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new AppHost()
@@ -119,7 +119,7 @@ namespace NewApi.Customers
                 .Start(BaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

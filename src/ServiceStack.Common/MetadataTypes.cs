@@ -22,7 +22,7 @@ namespace ServiceStack
             bool addServiceStackTypes = true,
             bool addModelExtensions = true,
             bool addPropertyAccessors = true,
-            bool excludeGenericBaseTypes = true,
+            bool excludeGenericBaseTypes = false,
             bool settersReturnThis = true,
             bool makePropertiesOptional = true,
             bool makeDataContractsExtensible = false,
@@ -55,6 +55,7 @@ namespace ServiceStack
         public string BaseUrl { get; set; }
         public bool MakePartial { get; set; }
         public bool MakeVirtual { get; set; }
+        public bool MakeInternal { get; set; }
         public string BaseClass { get; set; }
         public string Package { get; set; }
         public bool AddReturnMarker { get; set; }
@@ -74,13 +75,16 @@ namespace ServiceStack
         public string AddDefaultXmlNamespace { get; set; }
         public bool MakeDataContractsExtensible { get; set; }
         public bool InitializeCollections { get; set; }
+        public List<string> AddNamespaces { get; set; }
         public List<string> DefaultNamespaces { get; set; }
         public List<string> DefaultImports { get; set; }
         public List<string> IncludeTypes { get; set; }
         public List<string> ExcludeTypes { get; set; }
         public List<string> TreatTypesAsStrings { get; set; }
+        public bool ExportValueTypes { get; set; }
 
         public string GlobalNamespace { get; set; }
+        public bool ExcludeNamespace { get; set; }
 
         public HashSet<Type> IgnoreTypes { get; set; }
         public HashSet<Type> ExportTypes { get; set; }
@@ -123,6 +127,7 @@ namespace ServiceStack
         public bool ReturnVoidMarker { get; set; }
         public bool? IsNested { get; set; }
         public bool? IsEnum { get; set; }
+        public bool? IsEnumInt { get; set; }
         public bool? IsInterface { get; set; }
         public bool? IsAbstract { get; set; }
 
@@ -181,6 +186,8 @@ namespace ServiceStack
         public string Name { get; set; }
         public string Type { get; set; }
         public bool? IsValueType { get; set; }
+        public bool? IsSystemType { get; set; }
+        public bool? IsEnum { get; set; }
         public string TypeNamespace { get; set; }
         public string[] GenericArgs { get; set; }
         public string Value { get; set; }

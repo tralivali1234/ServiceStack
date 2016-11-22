@@ -38,6 +38,88 @@ namespace ServiceStack.Server.Tests.Shared
         }
     }
 
+    public class AllFields
+    {
+        public int Id { get; set; }
+        public int? NullableId { get; set; }
+        public byte Byte { get; set; }
+        public short Short { get; set; }
+        public int Int { get; set; }
+        public long Long { get; set; }
+        public ushort UShort { get; set; }
+        public uint UInt { get; set; }
+        public ulong ULong { get; set; }
+        public float Float { get; set; }
+        public double Double { get; set; }
+        public decimal Decimal { get; set; }
+        public string String { get; set; }
+        public DateTime DateTime { get; set; }
+        public TimeSpan TimeSpan { get; set; }
+        public Guid Guid { get; set; }
+        public DateTime? NullableDateTime { get; set; }
+        public TimeSpan? NullableTimeSpan { get; set; }
+        public Guid? NullableGuid { get; set; }
+
+        protected bool Equals(AllFields other)
+        {
+            return Id == other.Id &&
+                NullableId == other.NullableId &&
+                Byte == other.Byte &&
+                Short == other.Short &&
+                Int == other.Int &&
+                Long == other.Long &&
+                UShort == other.UShort &&
+                UInt == other.UInt &&
+                ULong == other.ULong &&
+                Float.Equals(other.Float) &&
+                Double.Equals(other.Double) &&
+                Decimal == other.Decimal &&
+                string.Equals(String, other.String) &&
+                DateTime.Equals(other.DateTime) &&
+                TimeSpan.Equals(other.TimeSpan) &&
+                Guid.Equals(other.Guid) &&
+                NullableDateTime.Equals(other.NullableDateTime) &&
+                NullableTimeSpan.Equals(other.NullableTimeSpan) &&
+                NullableGuid.Equals(other.NullableGuid);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((AllFields)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = Id;
+                hashCode = (hashCode * 397) ^ NullableId.GetHashCode();
+                hashCode = (hashCode * 397) ^ Byte.GetHashCode();
+                hashCode = (hashCode * 397) ^ Short.GetHashCode();
+                hashCode = (hashCode * 397) ^ Int;
+                hashCode = (hashCode * 397) ^ Long.GetHashCode();
+                hashCode = (hashCode * 397) ^ UShort.GetHashCode();
+                hashCode = (hashCode * 397) ^ (int)UInt;
+                hashCode = (hashCode * 397) ^ ULong.GetHashCode();
+                hashCode = (hashCode * 397) ^ Float.GetHashCode();
+                hashCode = (hashCode * 397) ^ Double.GetHashCode();
+                hashCode = (hashCode * 397) ^ Decimal.GetHashCode();
+                hashCode = (hashCode * 397) ^ (String != null ? String.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ DateTime.GetHashCode();
+                hashCode = (hashCode * 397) ^ TimeSpan.GetHashCode();
+                hashCode = (hashCode * 397) ^ Guid.GetHashCode();
+                hashCode = (hashCode * 397) ^ NullableDateTime.GetHashCode();
+                hashCode = (hashCode * 397) ^ NullableTimeSpan.GetHashCode();
+                hashCode = (hashCode * 397) ^ NullableGuid.GetHashCode();
+                return hashCode;
+            }
+        }
+    }
+
+
     public class CustomAuthSession : AuthUserSession
     {
         [DataMember]
@@ -56,7 +138,7 @@ namespace ServiceStack.Server.Tests.Shared
             Cache = CreateClient();
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             Cache.Dispose();
@@ -170,6 +252,14 @@ namespace ServiceStack.Server.Tests.Shared
         }
 
         [Test]
+        public void Can_increment_and_reset_values()
+        {
+            Assert.That(Cache.Increment("incr:counter", 10), Is.EqualTo(10));
+            Cache.Set("incr:counter", 0);
+            Assert.That(Cache.Increment("incr:counter", 10), Is.EqualTo(10));
+        }
+
+        [Test]
         public void Can_remove_multiple_items()
         {
             var map = 5.Times(i => new Item { Id = i, Name = "Name" + i })
@@ -229,9 +319,9 @@ namespace ServiceStack.Server.Tests.Shared
             var sessionExpiry = SessionFeature.DefaultSessionExpiry;
             Cache.Set(sessionKey, session, sessionExpiry);
             ttl = Cache.GetTimeToLive(sessionKey);
-            var roundedToSec = new TimeSpan(ttl.Value.Ticks - (ttl.Value.Ticks % 1000));
-            Assert.That(roundedToSec, Is.GreaterThan(TimeSpan.FromSeconds(0)));
-            Assert.That(roundedToSec, Is.LessThanOrEqualTo(sessionExpiry));
+            Assert.That(ttl.Value, Is.GreaterThan(TimeSpan.FromSeconds(0)));
+            Assert.That(ttl.Value, Is.LessThan(sessionExpiry).
+                                   Or.EqualTo(sessionExpiry).Within(TimeSpan.FromSeconds(1)));
         }
 
         [Test]
@@ -271,7 +361,7 @@ namespace ServiceStack.Server.Tests.Shared
             Parallel.Invoke(fns.ToArray());
 
             var entry = cache.Get<string>("concurrent-test");
-            Assert.That(entry, Is.StringStarting("Data: "));
+            Assert.That(entry, Does.StartWith("Data: "));
         }
 
         [Test]
@@ -305,7 +395,8 @@ namespace ServiceStack.Server.Tests.Shared
 
             JsConfig.ExcludeTypeInfo = true;
 
-            5.Times(i => {
+            5.Times(i =>
+            {
                 IAuthSession session = new CustomAuthSession
                 {
                     Id = "sess-" + i,
@@ -330,6 +421,42 @@ namespace ServiceStack.Server.Tests.Shared
 
             var allKeys = Cache.GetAllKeys().ToList();
             Assert.That(allKeys.Count, Is.EqualTo(10));
+
+            JsConfig.Reset();
+        }
+
+        [Test]
+        public void Can_Cache_AllFields()
+        {
+            JsConfig.DateHandler = DateHandler.ISO8601;
+
+            var dto = new AllFields
+            {
+                Id = 1,
+                NullableId = 2,
+                Byte = 3,
+                Short = 4,
+                Int = 5,
+                Long = 6,
+                UShort = 7,
+                UInt = 8,
+                Float = 1.1f,
+                Double = 2.2d,
+                Decimal = 3.3m,
+                String = "String",
+                DateTime = DateTime.Now,
+                TimeSpan = new TimeSpan(1, 1, 1, 1, 1),
+                Guid = Guid.NewGuid(),
+                NullableTimeSpan = new TimeSpan(2, 2, 2),
+                NullableGuid = new Guid("4B6BB8AE-57B5-4B5B-8632-0C35AF0B3168"),
+            };
+
+            Cache.Set("allfields", dto);
+            var fromCache = Cache.Get<AllFields>("allfields");
+
+            Assert.That(fromCache.DateTime, Is.EqualTo(dto.DateTime));
+
+            Assert.That(fromCache.Equals(dto));
 
             JsConfig.Reset();
         }

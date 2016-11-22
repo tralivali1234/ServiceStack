@@ -1,7 +1,7 @@
 ﻿// Copyright (c) Service Stack LLC. All Rights Reserved.
 // License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
-
+#if !NETCORE_SUPPORT
 using System.Net;
 using NUnit.Framework;
 using ServiceStack.Auth;
@@ -15,7 +15,7 @@ namespace ServiceStack.Common.Tests.OAuth
     {
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new BasicAppHost 
@@ -39,7 +39,7 @@ namespace ServiceStack.Common.Tests.OAuth
             }.Init();
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -128,3 +128,4 @@ namespace ServiceStack.Common.Tests.OAuth
         }
     }
 }
+#endif

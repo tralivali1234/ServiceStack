@@ -6,12 +6,16 @@ using ServiceStack.Web;
 
 namespace ServiceStack
 {
-    public class HttpError : Exception, IHttpError, IResponseStatusConvertible
+    public class HttpError : Exception, IHttpError, IResponseStatusConvertible, IHasErrorCode
     {
         public HttpError() : this(null) { }
 
         public HttpError(string message)
             : this(HttpStatusCode.InternalServerError, message)
+        { }
+
+        public HttpError(HttpStatusCode statusCode)
+            : this(statusCode, statusCode.ToString(), null)
         { }
 
         public HttpError(HttpStatusCode statusCode, string errorMessage)
@@ -44,7 +48,10 @@ namespace ServiceStack
             this.ErrorCode = errorCode ?? statusCode.ToString();
             this.Status = statusCode;
             this.Headers = new Dictionary<string, string>();
-            this.StatusDescription = errorCode;
+            var hasStatusDesc = innerException as IHasStatusDescription;
+            this.StatusDescription = hasStatusDesc != null 
+                ? hasStatusDesc.StatusDescription 
+                : errorCode;
             this.Headers = new Dictionary<string, string>();
             this.Cookies = new List<Cookie>();
         }
@@ -92,18 +99,9 @@ namespace ServiceStack
 
         public Func<IDisposable> ResultScope { get; set; }
 
-        public IDictionary<string, string> Options
-        {
-            get { return this.Headers; }
-        }
+        public IDictionary<string, string> Options => this.Headers;
 
-        public ResponseStatus ResponseStatus
-        {
-            get
-            {
-                return this.Response.GetResponseStatus();
-            }
-        }
+        public ResponseStatus ResponseStatus => this.Response.GetResponseStatus();
 
         public List<ResponseError> GetFieldErrors()
         {
@@ -132,6 +130,11 @@ namespace ServiceStack
         public static Exception Forbidden(string message)
         {
             return new HttpError(HttpStatusCode.Forbidden, message);
+        }
+
+        public static Exception MethodNotAllowed(string message)
+        {
+            return new HttpError(HttpStatusCode.MethodNotAllowed, message);
         }
 
         public ResponseStatus ToResponseStatus()

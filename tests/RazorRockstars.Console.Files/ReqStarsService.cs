@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Threading;
+using System.Web.ModelBinding;
 using NUnit.Framework;
 using ServiceStack;
 using ServiceStack.Data;
@@ -30,6 +31,27 @@ namespace RazorRockstars.Console.Files
     /// Content Negotiation built-in, i.e. by default each method/route is automatically available in every registered Content-Type (HTTP Only).
     /// New API are also available in ServiceStack's typed service clients (they're actually even more succinct :)
     /// Any Views rendered is based on Request or Returned DTO type, see: http://razor.servicestack.net/#unified-stack
+
+    [System.ComponentModel.Description("Description for ACodeGenTest")]
+    public class ACodeGenTest
+    {
+        [ServiceStack.DataAnnotations.Description("Description for FirstField")]
+        public int FirstField { get; set; }
+
+        public List<string> SecondFields { get; set; }
+    }
+
+    [DataContract]
+    public class ACodeGenTestResponse
+    {
+        [DataMember]
+        [ServiceStack.DataAnnotations.Description("Description for FirstResult")]
+        public int FirstResult { get; set; }
+
+        [DataMember]
+        [ApiMember(Description = "Description for SecondResult")]
+        public int SecondResult { get; set; }
+    }
 
     [Route("/reqstars/search", "GET")]
     [Route("/reqstars/aged/{Age}")]
@@ -148,6 +170,11 @@ namespace RazorRockstars.Console.Files
             new Reqstar(2, "Something", "Else", 30), 
             new Reqstar(3, "Foo2", "Bar2", 20), 
         };
+
+        public object Any(ACodeGenTest request)
+        {
+            return new ACodeGenTestResponse { FirstResult = request.FirstField };
+        }
 
         [EnableCors]
         public void Options(Reqstar reqstar) { }
@@ -401,7 +428,7 @@ namespace RazorRockstars.Console.Files
 
         private Stopwatch startedAt;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             LogManager.LogFactory = new ConsoleLogFactory();
@@ -433,7 +460,7 @@ namespace RazorRockstars.Console.Files
             db.Dispose();
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             "Time Taken {0}ms".Fmt(startedAt.ElapsedMilliseconds).Print();
@@ -590,8 +617,8 @@ namespace RazorRockstars.Console.Files
         {
             var html = "{0}/reqstars".Fmt(Host).GetStringFromUrl(accept: "text/html");
             html.Print();
-            Assert.That(html, Is.StringContaining("<!--view:AllReqstars.cshtml-->"));
-            Assert.That(html, Is.StringContaining("<!--template:HtmlReport.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--view:AllReqstars.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--template:HtmlReport.cshtml-->"));
         }
 
 
@@ -722,8 +749,8 @@ namespace RazorRockstars.Console.Files
         {
             var html = "{0}/reqstars/1".Fmt(Host).GetStringFromUrl(accept: "text/html");
             html.Print();
-            Assert.That(html, Is.StringContaining("<!--view:GetReqstar.cshtml-->"));
-            Assert.That(html, Is.StringContaining("<!--template:HtmlReport.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--view:GetReqstar.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--template:HtmlReport.cshtml-->"));
         }
 
 
@@ -921,9 +948,9 @@ namespace RazorRockstars.Console.Files
         public void Does_Cache_RazorPage()
         {
             var html = "{0}/reqstars/cached/10".Fmt(Host).GetStringFromUrl();
-            Assert.That(html, Is.StringContaining("<h1>Counter:10</h1>"));
+            Assert.That(html, Does.Contain("<h1>Counter:10</h1>"));
             html = "{0}/reqstars/cached/20".Fmt(Host).GetStringFromUrl();
-            Assert.That(html, Is.StringContaining("<h1>Counter:10</h1>"));
+            Assert.That(html, Does.Contain("<h1>Counter:10</h1>"));
         }
 
         [Test]
@@ -967,9 +994,9 @@ namespace RazorRockstars.Console.Files
             var html = "{0}/Pages/PartialExamples".Fmt(Host)
                 .GetStringFromUrl();
 
-            Assert.That(html, Is.StringContaining("<!--view:PartialExamples.cshtml-->"));
-            Assert.That(html, Is.StringContaining("<!--view:GetReqstar.cshtml-->"));
-            Assert.That(html, Is.StringContaining("<!--view:CustomReqstar.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--view:PartialExamples.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--view:GetReqstar.cshtml-->"));
+            Assert.That(html, Does.Contain("<!--view:CustomReqstar.cshtml-->"));
         }
 
         [Test]
@@ -978,12 +1005,12 @@ namespace RazorRockstars.Console.Files
             var html1 = "{0}/cached/reqstars/1".Fmt(Host)
                 .GetStringFromUrl();
 
-            Assert.That(html1, Is.StringContaining("<!--view:GetCachedReqstar.cshtml-->"));
+            Assert.That(html1, Does.Contain("<!--view:GetCachedReqstar.cshtml-->"));
 
             var html2 = "{0}/cached/reqstars/1".Fmt(Host)
                 .GetStringFromUrl();
 
-            Assert.That(html2, Is.StringContaining("<!--view:GetCachedReqstar.cshtml-->"));
+            Assert.That(html2, Does.Contain("<!--view:GetCachedReqstar.cshtml-->"));
 
             Assert.That(html1, Is.EqualTo(html2));
 

@@ -17,15 +17,18 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         ExampleAppHostHttpListener appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new ExampleAppHostHttpListener();
             appHost.Init();
             appHost.Start(ListeningOn);
+#if NETCORE            
+            appHost.Config.DisableChunkedEncoding = true;
+#endif
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();

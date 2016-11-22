@@ -14,7 +14,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
     public class EncryptedMessagesAppHost : AppSelfHostBase
     {
         public EncryptedMessagesAppHost()
-            : base(typeof(EncryptedMessagesAppHost).Name, typeof(SecureServices).Assembly)
+            : base(typeof(EncryptedMessagesAppHost).Name, typeof(SecureServices).GetAssembly())
         { }
 
         public override void Configure(Container container)
@@ -65,13 +65,15 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
                 .Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
+            ((IClearable)appHost.TryResolve<IAuthRepository>()).Clear(); //Flush InMemoryAuthProvider
             appHost.Dispose();
         }
 
         protected abstract IJsonServiceClient CreateClient();
+
         [Test]
         public void Can_Send_Encrypted_Message_with_ServiceClients()
         {
@@ -81,6 +83,17 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
             var response = encryptedClient.Send(new HelloSecure { Name = "World" });
 
             Assert.That(response.Result, Is.EqualTo("Hello, World!"));
+        }
+
+        [Test]
+        public void Can_Send_Encrypted_OneWay_Message_with_ServiceClients()
+        {
+            var client = CreateClient();
+            IEncryptedClient encryptedClient = client.GetEncryptedClient(client.Get(new GetPublicKey()));
+
+            encryptedClient.Send(new HelloOneWay { Name = "World" });
+
+            Assert.That(HelloOneWay.LastName, Is.EqualTo("World"));
         }
 
         [Test]
@@ -203,7 +216,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
             catch (WebServiceException ex)
             {
                 Assert.That(ex.ResponseStatus.ErrorCode, Is.EqualTo(typeof(ArgumentNullException).Name));
-                Assert.That(ex.ResponseStatus.Message, Is.EqualTo("Value cannot be null.\r\nParameter name: Name"));
+                Assert.That(ex.ResponseStatus.Message, Is.EqualTo($"Value cannot be null.{Environment.NewLine}Parameter name: Name"));
             }
 
             try
@@ -258,6 +271,18 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
             var responseNames = responses.Map(x => x.Result);
 
             Assert.That(responseNames, Is.EqualTo(names.Map(x => "Hello, {0}!".Fmt(x))));
+        }
+
+        [Test]
+        public void Can_send_PublishAll_requests()
+        {
+            var client = CreateClient();
+            IEncryptedClient encryptedClient = client.GetEncryptedClient(client.Get<string>("/publickey"));
+
+            var names = new[] { "Foo", "Bar", "Baz" };
+            var requests = names.Map(x => new HelloSecure { Name = x });
+
+            encryptedClient.PublishAll(requests);
         }
 
         [Test]
@@ -433,7 +458,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.UseCases
             {
                 Assert.That(ex.StatusCode, Is.EqualTo((int)HttpStatusCode.NotFound));
                 Assert.That(ex.StatusDescription, Is.EqualTo("KeyNotFoundException"));
-                Assert.That(ex.ResponseStatus.Message, Is.StringStarting(EncryptedMessagesFeature.ErrorKeyNotFound.Substring(0,10)));
+                Assert.That(ex.ResponseStatus.Message, Does.StartWith(EncryptedMessagesFeature.ErrorKeyNotFound.Substring(0,10)));
             }
         }
     }

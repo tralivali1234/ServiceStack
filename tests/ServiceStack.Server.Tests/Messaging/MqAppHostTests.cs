@@ -5,24 +5,31 @@ using NUnit.Framework;
 using ServiceStack.Messaging;
 using ServiceStack.RabbitMq;
 using ServiceStack.Server.Tests.Caching;
+using TestsConfig = ServiceStack.Server.Tests.Config;
 
 namespace ServiceStack.Server.Tests.Messaging
 {
     public class MqAppHost : AppSelfHostBase
     {
         public MqAppHost()
-            : base(typeof(MqAppHost).Name, typeof(MqAppHostServices).Assembly) {}
+            : base(typeof(MqAppHost).Name, typeof(MqAppHostServices).GetAssembly()) {}
 
         public override void Configure(Container container)
         {
-            var mqServer = new RabbitMqServer();
+            var mqServer = new RabbitMqServer(connectionString: TestsConfig.RabbitMQConnString);
 
             mqServer.RegisterHandler<MqCustomException>(
-                ServiceController.ExecuteMessage,
+                ExecuteMessage,
                 HandleMqCustomException);
 
             container.Register<IMessageService>(c => mqServer);
             mqServer.Start();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            Resolve<IMessageService>().Dispose();
+            base.Dispose(disposing);
         }
 
         public CustomException LastCustomException;
@@ -79,7 +86,7 @@ namespace ServiceStack.Server.Tests.Messaging
                 .Start(Config.ListeningOn);
     }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

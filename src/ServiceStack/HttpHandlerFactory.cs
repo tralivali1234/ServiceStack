@@ -4,7 +4,6 @@ using System.Linq;
 using System.Net;
 using System.Web;
 using ServiceStack.Host;
-using ServiceStack.Host.AspNet;
 using ServiceStack.Host.Handlers;
 using ServiceStack.Text;
 using ServiceStack.Web;
@@ -14,14 +13,14 @@ namespace ServiceStack
     public class HttpHandlerFactory : IHttpHandlerFactory
     {
         static readonly List<string> WebHostRootFileNames = new List<string>();
-        static private readonly string WebHostPhysicalPath = null;
-        static private readonly string DefaultRootFileName = null;
+        private static readonly string WebHostPhysicalPath = null;
+        private static readonly string DefaultRootFileName = null;
         //internal static string ApplicationBaseUrl = null;
-        static private readonly IHttpHandler DefaultHttpHandler = null;
-        static private readonly RedirectHttpHandler NonRootModeDefaultHttpHandler = null;
-        static private readonly IHttpHandler ForbiddenHttpHandler = null;
-        static private readonly IHttpHandler NotFoundHttpHandler = null;
-        static private readonly IHttpHandler StaticFilesHandler = new StaticFileHandler();
+        private static readonly IHttpHandler DefaultHttpHandler = null;
+        private static readonly RedirectHttpHandler NonRootModeDefaultHttpHandler = null;
+        private static readonly IHttpHandler ForbiddenHttpHandler = null;
+        private static readonly IHttpHandler NotFoundHttpHandler = null;
+        private static readonly IHttpHandler StaticFilesHandler = new StaticFileHandler();
         private static readonly bool IsIntegratedPipeline = false;
         private static readonly bool HostAutoRedirectsDirs = false;
 
@@ -32,18 +31,21 @@ namespace ServiceStack
         {
             try
             {
+
+#if !NETSTANDARD1_6
                 //MONO doesn't implement this property
                 var pi = typeof(HttpRuntime).GetProperty("UsingIntegratedPipeline");
                 if (pi != null)
                 {
-                    IsIntegratedPipeline = (bool)pi.GetGetMethod().Invoke(null, new object[0]);
+                    IsIntegratedPipeline = (bool)pi.GetGetMethod().Invoke(null, TypeConstants.EmptyObjectArray);
                 }
+#endif
 
                 var appHost = HostContext.AppHost;
                 var config = appHost.Config;
 
                 var isAspNetHost = HostContext.IsAspNetHost;
-                WebHostPhysicalPath = appHost.VirtualPathProvider.RootDirectory.RealPath;
+                WebHostPhysicalPath = appHost.VirtualFileSources.RootDirectory.RealPath;
                 HostAutoRedirectsDirs = isAspNetHost && !Env.IsMono;
 
                 //Apache+mod_mono treats path="servicestack*" as path="*" so takes over root path, so we need to serve matching resources
@@ -53,7 +55,7 @@ namespace ServiceStack
                 if (!IsIntegratedPipeline && isAspNetHost && !hostedAtRootPath && !Env.IsMono)
                     DefaultHttpHandler = new DefaultHttpHandler();
 
-                var rootFiles = appHost.VirtualPathProvider.GetRootFiles().ToList();
+                var rootFiles = appHost.VirtualFileSources.GetRootFiles().ToList();
                 foreach (var file in rootFiles)
                 {
                     var fileNameLower = file.Name.ToLower();
@@ -66,25 +68,28 @@ namespace ServiceStack
                             StaticFileHandler.SetDefaultFile(file.VirtualPath, file.ReadAllBytes(), file.LastModified);
 
                             if (DefaultHttpHandler == null)
-                                DefaultHttpHandler = new StaticFileHandler { VirtualNode = file };
+                                DefaultHttpHandler = new StaticFileHandler(file);
                         }
                     }
                     WebHostRootFileNames.Add(fileNameLower);
                 }
 
-                foreach (var dir in appHost.VirtualPathProvider.GetRootDirectories())
+                foreach (var dir in appHost.VirtualFileSources.GetRootDirectories())
                 {
                     WebHostRootFileNames.Add(dir.Name.ToLower());
                 }
 
                 if (!string.IsNullOrEmpty(config.DefaultRedirectPath))
+                {
                     DefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.DefaultRedirectPath };
+                    NonRootModeDefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.DefaultRedirectPath };
+                }
 
                 if (DefaultHttpHandler == null && !string.IsNullOrEmpty(config.MetadataRedirectPath))
+                {
                     DefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.MetadataRedirectPath };
-
-                if (!string.IsNullOrEmpty(config.MetadataRedirectPath))
                     NonRootModeDefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.MetadataRedirectPath };
+                }
 
                 if (DefaultHttpHandler == null)
                     DefaultHttpHandler = NotFoundHttpHandler;
@@ -131,6 +136,7 @@ namespace ServiceStack
             }
         }
 
+#if !NETSTANDARD1_6
         // Entry point for ASP.NET
         public IHttpHandler GetHandler(HttpContext ctx, string requestType, string url, string pathTranslated)
         {
@@ -139,7 +145,7 @@ namespace ServiceStack
 
             DebugLastHandlerArgs = requestType + "|" + url + "|" + pathTranslated;
             //var httpReq = new AspNetRequest(context, url);
-            var httpReq = new AspNetRequest(context, url.SanitizedVirtualPath());
+            var httpReq = new ServiceStack.Host.AspNet.AspNetRequest(context, url.SanitizedVirtualPath());
             foreach (var rawHttpHandler in appHost.RawHttpHandlers)
             {
                 var reqInfo = rawHttpHandler(httpReq);
@@ -195,7 +201,7 @@ namespace ServiceStack
                 httpReq.HttpMethod, pathInfo, context.Request.FilePath, pathTranslated)
                    ?? NotFoundHttpHandler;
         }
-
+#endif
         private static void SetApplicationBaseUrl(string absoluteUrl)
         {
             if (absoluteUrl == null) return;
@@ -355,7 +361,7 @@ namespace ServiceStack
 
                 if (!isFileRequest)
                 {
-                    return appHost.VirtualPathProvider.DirectoryExists(pathInfo)
+                    return appHost.VirtualFileSources.DirectoryExists(pathInfo)
                         ? StaticFilesHandler
                         : NotFoundHttpHandler;
                 }

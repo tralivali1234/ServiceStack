@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿#if !NETCORE_SUPPORT
+using System.Linq;
 using NUnit.Framework;
 using ServiceStack.Auth;
 using ServiceStack.Configuration;
@@ -12,14 +13,14 @@ namespace ServiceStack.Common.Tests.OAuth
     {
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new BasicAppHost().Init();
             AuthenticateService.Init(() => new AuthUserSession(), new CredentialsAuthProvider());
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -103,3 +104,4 @@ namespace ServiceStack.Common.Tests.OAuth
         }
     }
 }
+#endif

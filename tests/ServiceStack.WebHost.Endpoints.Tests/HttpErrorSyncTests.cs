@@ -36,7 +36,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         private ExampleAppHostHttpListener appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new ExampleAppHostHttpListener();
@@ -44,7 +44,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             appHost.Start(ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();
@@ -115,7 +115,25 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
             catch (WebServiceException webEx)
             {
+                webEx.StatusDescription.Print();
                 Assert404(webEx);
+            }
+        }
+
+        [Test]
+        public void Throw404Description_does_return_404_with_Custom_StatusDescription()
+        {
+            var client = CreateClient(ListeningOn);
+
+            try
+            {
+                var response = client.Get<string>(new Throw404Description());
+            }
+            catch (WebServiceException webEx)
+            {
+                Assert.That(webEx.StatusCode, Is.EqualTo(404));
+                Assert.That(webEx.StatusDescription, Is.EqualTo("Custom Status Description"));
+                Assert.That(webEx.ResponseStatus.ErrorCode, Is.EqualTo(HttpStatusCode.NotFound.ToString()));
             }
         }
 
@@ -146,6 +164,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             catch (WebServiceException webEx)
             {
                 Assert.That(webEx.StatusCode, Is.EqualTo(404));
+                Assert.That(webEx.StatusDescription, Is.EqualTo("Custom Status Description"));
                 Assert.That(webEx.ResponseStatus, Is.Null);
                 Assert.That(webEx.ResponseBody, Is.Null.Or.Empty);
             }
@@ -177,6 +196,35 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 Assert.That(webEx.ResponseStatus.Errors[0].FieldName, Is.EqualTo("FieldName"));
             }
         }
+
+        [Test]
+        public void Does_preserve_WebServiceException()
+        {
+            var client = CreateClient(ListeningOn);
+
+            var request = new ThrowWebServiceException
+            {
+                StatusCode = 400,
+                StatusDescription = "Original Message",
+                ResponseStatus = new ResponseStatus
+                {
+                    ErrorCode = "ResponseStatus.ErrorCode",
+                    Message = "ResponseStatus.Message"
+                }
+            };
+
+            try
+            {
+                var response = client.Get<string>(request);
+            }
+            catch (WebServiceException webEx)
+            {
+                Assert.That(webEx.StatusCode, Is.EqualTo(request.StatusCode.Value));
+                Assert.That(webEx.Message, Is.EqualTo(request.StatusDescription));
+                Assert.That(webEx.ResponseStatus.ErrorCode, Is.EqualTo(request.ResponseStatus.ErrorCode));
+                Assert.That(webEx.ResponseStatus.Message, Is.EqualTo(request.ResponseStatus.Message));
+            }
+        }
     }
 
     public class Custom400Exception : Exception { }
@@ -186,6 +234,11 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     public class Custom401Exception : Exception, IHasStatusCode
     {
         public int StatusCode { get { return 401; } }
+    }
+
+    public class CustomErrorCodeException : Exception, IHasErrorCode
+    {
+        public string ErrorCode { get; set; }
     }
 
     [TestFixture]
@@ -205,6 +258,16 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 Assert.That(new Custom400Exception().ToStatusCode(), Is.EqualTo(400));
                 Assert.That(new Custom400SubException().ToStatusCode(), Is.EqualTo(400));
                 Assert.That(new Custom401Exception().ToStatusCode(), Is.EqualTo(401));
+            }
+        }
+
+        [Test]
+        public void Does_map_Exception_to_ErrorCode()
+        {
+            using (new BasicAppHost().Init())
+            {
+                Assert.That(new CustomErrorCodeException().ToErrorCode(), Is.EqualTo("CustomErrorCodeException"));
+                Assert.That(new CustomErrorCodeException { ErrorCode = "ERR401" }.ToErrorCode(), Is.EqualTo("ERR401"));
             }
         }
     }

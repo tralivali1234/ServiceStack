@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using ServiceStack.Caching;
 using ServiceStack.Web;
+using System.Globalization;
 
 namespace ServiceStack
 {
@@ -15,10 +16,51 @@ namespace ServiceStack
                 cacheClient.Set(cacheKey, value);
         }
 
+        private static string DateCacheKey(string cacheKey)
+        {
+            return cacheKey + ".created";
+        }
+
+        private static DateTime? CheckModifiedSince(IRequest req)
+        {
+            var ifModifiedSince = req.Headers[HttpHeaders.IfModifiedSince];
+            if (ifModifiedSince == null)
+                return null;
+
+            DateTime checkLastModified;
+            if (!DateTime.TryParse(ifModifiedSince, new DateTimeFormatInfo(), DateTimeStyles.RoundtripKind, out checkLastModified))
+                return null;
+
+            return checkLastModified;
+        }
+
+        public static bool HasValidCache(this ICacheClient cacheClient, IRequest req, string cacheKey, DateTime? checkLastModified, out DateTime? lastModified)
+        {
+            lastModified = null;
+
+            if (!HostContext.GetPlugin<HttpCacheFeature>().ShouldAddLastModifiedToOptimizedResults())
+                return false;
+
+            var ticks = cacheClient.Get<long>(DateCacheKey(cacheKey));
+            if (ticks > 0)
+            {
+                lastModified = new DateTime(ticks, DateTimeKind.Utc);
+                if (checkLastModified == null)
+                    return false;
+
+                return checkLastModified.Value <= lastModified.Value;
+            }
+
+            return false;
+        }
+
         public static object ResolveFromCache(this ICacheClient cacheClient,
             string cacheKey,
             IRequest request)
         {
+            DateTime? lastModified;
+            var checkModifiedSince = CheckModifiedSince(request);
+
             string modifiers = null;
             if (!request.ResponseContentType.IsBinary())
             {
@@ -37,17 +79,29 @@ namespace ServiceStack
                 {
                     var cacheKeySerializedZip = GetCacheKeyForCompressed(cacheKeySerialized, compressionType);
 
+                    if (cacheClient.HasValidCache(request, cacheKeySerializedZip, checkModifiedSince, out lastModified))
+                        return HttpResult.NotModified();
+
+                    if (request.Response.GetHeader(HttpHeaders.CacheControl) != null)
+                        lastModified = null;
+
                     var compressedResult = cacheClient.Get<byte[]>(cacheKeySerializedZip);
                     if (compressedResult != null)
                     {
                         return new CompressedResult(
                             compressedResult,
                             compressionType,
-                            request.ResponseContentType);
+                            request.ResponseContentType)
+                        {
+                            LastModified = lastModified,
+                        };
                     }
                 }
                 else
                 {
+                    if (cacheClient.HasValidCache(request, cacheKeySerialized, checkModifiedSince, out lastModified))
+                        return HttpResult.NotModified();
+
                     var serializedResult = cacheClient.Get<string>(cacheKeySerialized);
                     if (serializedResult != null)
                     {
@@ -58,6 +112,9 @@ namespace ServiceStack
             else
             {
                 var cacheKeySerialized = GetCacheKeyForSerialized(cacheKey, request.ResponseContentType, modifiers);
+                if (cacheClient.HasValidCache(request, cacheKeySerialized, checkModifiedSince, out lastModified))
+                    return HttpResult.NotModified();
+
                 var serializedResult = cacheClient.Get<byte[]>(cacheKeySerialized);
                 if (serializedResult != null)
                 {
@@ -68,7 +125,7 @@ namespace ServiceStack
             return null;
         }
 
-        static string SerializeToString(IRequest request, object responseDto)
+        internal static string SerializeToString(this IRequest request, object responseDto)
         {
             var str = responseDto as string;
             return str ?? HostContext.ContentTypes.SerializeToString(request, responseDto);
@@ -80,6 +137,7 @@ namespace ServiceStack
             IRequest request,
             TimeSpan? expireCacheIn = null)
         {
+
             request.Response.Dto = responseDto;
             cacheClient.Set(cacheKey, responseDto, expireCacheIn);
 
@@ -110,16 +168,25 @@ namespace ServiceStack
                 bool doCompression = compressionType != null;
                 if (doCompression)
                 {
+                    var lastModified = HostContext.GetPlugin<HttpCacheFeature>().ShouldAddLastModifiedToOptimizedResults()
+                        && String.IsNullOrEmpty(request.Response.GetHeader(HttpHeaders.CacheControl))
+                        ? DateTime.UtcNow
+                        : (DateTime?)null;
+
                     var cacheKeySerializedZip = GetCacheKeyForCompressed(cacheKeySerialized, compressionType);
 
                     byte[] compressedSerializedDto = serializedDto.Compress(compressionType);
                     cacheClient.Set(cacheKeySerializedZip, compressedSerializedDto, expireCacheIn);
 
-                    return (compressedSerializedDto != null)
+                    if (lastModified != null)
+                        cacheClient.Set(DateCacheKey(cacheKeySerializedZip), lastModified.Value.Ticks, expireCacheIn);
+
+                    return compressedSerializedDto != null
                         ? new CompressedResult(compressedSerializedDto, compressionType, request.ResponseContentType)
-                        {
-                            Status = request.Response.StatusCode
-                        }
+                          {
+                              Status = request.Response.StatusCode,
+                              LastModified = lastModified,
+                          }
                         : null;
                 }
 
@@ -246,7 +313,7 @@ namespace ServiceStack
         {
             var extendedCache = cache as ICacheClientExtended;
             if (extendedCache == null)
-                throw new NotFiniteNumberException("GetTimeToLive is not implemented by: " + cache.GetType().FullName);
+                throw new Exception("GetTimeToLive is not implemented by: " + cache.GetType().FullName);
 
             return extendedCache.GetTimeToLive(key);
         }

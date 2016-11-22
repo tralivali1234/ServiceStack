@@ -11,13 +11,13 @@ namespace ServiceStack.ServiceHost.Tests.Formats_Razor
     {
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new BasicAppHost().Init();
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -27,7 +27,8 @@ namespace ServiceStack.ServiceHost.Tests.Formats_Razor
         public void Simple_static_example()
         {
             RazorFormat.Instance = null;
-            var razor = new RazorFormat {
+            var razor = new RazorFormat
+            {
                 VirtualFileSources = new InMemoryVirtualPathProvider(new BasicAppHost()),
                 EnableLiveReload = false,
             }.Init();

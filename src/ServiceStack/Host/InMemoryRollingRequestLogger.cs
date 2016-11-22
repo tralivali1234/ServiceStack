@@ -9,7 +9,7 @@ namespace ServiceStack.Host
 {
     public class InMemoryRollingRequestLogger : IRequestLogger
     {
-        private static int requestId = 0;
+        internal static long requestId = 0;
 
         public const int DefaultCapacity = 1000;
         protected readonly ConcurrentQueue<RequestLogEntry> logEntries = new ConcurrentQueue<RequestLogEntry>();
@@ -38,7 +38,7 @@ namespace ServiceStack.Host
 
         public virtual void Log(IRequest request, object requestDto, object response, TimeSpan requestDuration)
         {
-            var requestType = requestDto != null ? requestDto.GetType() : null;
+            var requestType = requestDto?.GetType();
 
             if (ExcludeRequestType(requestType)) 
                 return;
@@ -70,10 +70,16 @@ namespace ServiceStack.Host
                 entry.ForwardedFor = request.Headers[HttpHeaders.XForwardedFor];
                 entry.Referer = request.Headers[HttpHeaders.Referer];
                 entry.Headers = request.Headers.ToDictionary();
-                entry.UserAuthId = request.GetItemOrCookie(HttpHeaders.XUserAuthId);
-                entry.SessionId = request.GetSessionId();
+                entry.UserAuthId = request.GetItemStringValue(HttpHeaders.XUserAuthId);
                 entry.Items = SerializableItems(request.Items);
                 entry.Session = EnableSessionTracking ? request.GetSession() : null;
+            }
+
+            var isClosed = request.Response.IsClosed;
+            if (!isClosed)
+            {
+                entry.UserAuthId = request.GetItemOrCookie(HttpHeaders.XUserAuthId);
+                entry.SessionId = request.GetSessionId();
             }
 
             if (HideRequestBodyForRequestDtoTypes != null
@@ -83,7 +89,10 @@ namespace ServiceStack.Host
                 entry.RequestDto = requestDto;
                 if (request != null)
                 {
-                    entry.FormData = request.FormData.ToDictionary();
+                    if (!isClosed)
+                    {
+                        entry.FormData = request.FormData.ToDictionary();
+                    }
 
                     if (EnableRequestBodyTracking)
                     {
@@ -94,7 +103,7 @@ namespace ServiceStack.Host
             if (!response.IsErrorResponse())
             {
                 if (EnableResponseTracking)
-                    entry.ResponseDto = response;
+                    entry.ResponseDto = response.GetResponseDto();
             }
             else
             {
@@ -117,10 +126,7 @@ namespace ServiceStack.Host
             var to = new Dictionary<string, string>();
             foreach (var item in items)
             {
-                var value = item.Value == null
-                    ? "(null)"
-                    : item.Value.ToString();
-
+                var value = item.Value?.ToString() ?? "(null)";
                 to[item.Key] = value;
             }
 
@@ -142,7 +148,7 @@ namespace ServiceStack.Host
                 return errorResult.Response;
 
             var ex = response as Exception;
-            return ex != null ? ex.ToResponseStatus() : null;
+            return ex?.ToResponseStatus();
         }
     }
 }

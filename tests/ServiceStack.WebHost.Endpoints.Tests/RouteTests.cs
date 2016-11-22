@@ -13,7 +13,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     {
         private RouteAppHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new RouteAppHost();
@@ -21,7 +21,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             appHost.Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -37,7 +37,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                     Assert.That(httpRes.ContentType.MatchesContentType(MimeTypes.Html));
                 });
 
-            Assert.That(response, Is.StringStarting("<!doctype html>"));
+            Assert.That(response, Does.StartWith("<!doctype html>"));
         }
 
         [Test]
@@ -91,7 +91,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                     Assert.That(httpRes.ContentType.MatchesContentType(MimeTypes.Html));
                 });
 
-            Assert.That(response, Is.StringStarting("<!doctype html>"));
+            Assert.That(response, Does.StartWith("<!doctype html>"));
         }
 
         [Test]
@@ -104,8 +104,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                     Assert.That(httpRes.ContentType.MatchesContentType(MimeTypes.Csv));
                 });
 
-            var lf = System.Environment.NewLine;
-            Assert.That(response, Is.EqualTo("Data{0}foo{0}".Fmt(lf)));
+            Assert.That(response, Is.EqualTo("Data\r\nfoo\r\n"));
         }
 
         [Test]
@@ -185,7 +184,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
     public class RouteAppHost : AppHostHttpListenerBase
     {
-        public RouteAppHost() : base(typeof(BufferedRequestTests).Name, typeof(CustomRouteService).Assembly) { }
+        public RouteAppHost() : base(typeof(BufferedRequestTests).Name, typeof(CustomRouteService).GetAssembly()) { }
 
         public override void Configure(Container container)
         {
@@ -267,7 +266,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     {
         private ModifiedRouteAppHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new ModifiedRouteAppHost();
@@ -275,7 +274,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             appHost.Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -298,15 +297,14 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var response = Config.AbsoluteBaseUri.CombineWith("/api/modified/foo.csv")
                 .GetStringFromUrl();
 
-            var lf = System.Environment.NewLine;
-            Assert.That(response, Is.EqualTo("Data{0}foo{0}".Fmt(lf)));
+            Assert.That(response, Is.EqualTo("Data\r\nfoo\r\n"));
 
         }
     }
 
     public class ModifiedRouteAppHost : AppHostHttpListenerBase
     {
-        public ModifiedRouteAppHost() : base(typeof(BufferedRequestTests).Name, typeof(CustomRouteService).Assembly) { }
+        public ModifiedRouteAppHost() : base(typeof(BufferedRequestTests).Name, typeof(CustomRouteService).GetAssembly()) { }
 
         public override void Configure(Container container)
         {
@@ -344,7 +342,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         class InvalidRoutesAppHost : AppSelfHostBase
         {
-            public InvalidRoutesAppHost() : base(typeof(InvalidRoutesAppHost).Name, typeof(InvalidRoutesAppHost).Assembly) { }
+            public InvalidRoutesAppHost() : base(typeof(InvalidRoutesAppHost).Name, typeof(InvalidRoutesAppHost).GetAssembly()) { }
 
             public override void Configure(Container container)
             {
@@ -398,7 +396,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
     class RouteInfoAppHost : AppSelfHostBase
     {
-        public RouteInfoAppHost() : base(typeof(RouteInfoAppHost).Name, typeof(RouteInfoAppHost).Assembly) { }
+        public RouteInfoAppHost() : base(typeof(RouteInfoAppHost).Name, typeof(RouteInfoAppHost).GetAssembly()) { }
         public override void Configure(Container container)
         {
             CatchAllHandlers.Add((httpMethod, pathInfo, filePath) =>

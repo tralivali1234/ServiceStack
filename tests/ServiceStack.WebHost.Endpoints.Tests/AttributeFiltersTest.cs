@@ -238,7 +238,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         {
 
             public AttributeFiltersAppHostHttpListener()
-                : base("Attribute Filters Tests", typeof(AttributeAttributeFilteredService).Assembly)
+                : base("Attribute Filters Tests", typeof(AttributeAttributeFilteredService).GetAssembly())
             { }
 
             public override void Configure(Funq.Container container)
@@ -250,7 +250,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         AttributeFiltersAppHostHttpListener appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new AttributeFiltersAppHostHttpListener();
@@ -258,7 +258,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             appHost.Start(ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();

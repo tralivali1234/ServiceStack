@@ -64,12 +64,24 @@ namespace ServiceStack.FluentValidation.Validators
             set { InnerValidator.CustomStateProvider = value; }
         }
 
+        public Severity Severity
+  		{
+  		    get { return InnerValidator.Severity; }
+  		    set { InnerValidator.Severity = value; }
+  		}
+
         IPropertyValidator IDelegatingValidator.InnerValidator {
             get { return InnerValidator; }
         }
+
+        public bool CheckCondition(object instance) {
+            return condition(instance);
+        }
     }
 
-    public interface IDelegatingValidator : IPropertyValidator {
+    public interface IDelegatingValidator : IPropertyValidator
+    {
         IPropertyValidator InnerValidator { get; }
+        bool CheckCondition(object instance);
     }
 }

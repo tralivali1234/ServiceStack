@@ -88,7 +88,7 @@ namespace ServiceStack.WebHost.IntegrationTests.Services
 			: AppHostHttpListenerBase
 		{
 			public TodoListAppHostHttpListener()
-				: base("TodoList Tests", typeof(TodoList).Assembly) { }
+				: base("TodoList Tests", typeof(TodoList).GetAssembly()) { }
 
 			public override void Configure(Container container) {}
 		}
@@ -101,7 +101,7 @@ namespace ServiceStack.WebHost.IntegrationTests.Services
 			new Todo { Id = 3, Name = "Todo3", Content = "Content3", Done = false},
 		};
 
-		[TestFixtureSetUp]
+		[OneTimeSetUp]
 		public void OnTestFixtureSetUp()
 		{
 			appHost = new TodoListAppHostHttpListener();
@@ -109,7 +109,7 @@ namespace ServiceStack.WebHost.IntegrationTests.Services
 			appHost.Start(ListeningOn);
 		}
 
-		[TestFixtureTearDown]
+		[OneTimeTearDown]
 		public void OnTestFixtureTearDown()
 		{
 			appHost.Dispose();

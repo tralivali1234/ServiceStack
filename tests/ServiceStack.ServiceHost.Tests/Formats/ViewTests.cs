@@ -22,7 +22,7 @@ namespace ServiceStack.ServiceHost.Tests.Formats
         private MarkdownFormat markdownFormat;
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             var json = "~/AppData/ALFKI.json".MapProjectPath().ReadAllText();
@@ -30,15 +30,16 @@ namespace ServiceStack.ServiceHost.Tests.Formats
 
             appHost = new BasicAppHost
             {
-                ConfigFilter = config => {
+                ConfigFilter = config =>
+                {
                     //Files aren't copied, set RootDirectory to ProjectPath instead.
-                    config.WebHostPhysicalPath = "~".MapProjectPath(); 
+                    config.WebHostPhysicalPath = "~".MapProjectPath();
                 }
             }.Init();
             markdownFormat = appHost.GetPlugin<MarkdownFormat>();
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -139,7 +140,7 @@ namespace ServiceStack.ServiceHost.Tests.Formats
                 this.Request = httpReq;
                 this.Headers = new Dictionary<string, string>();
                 this.MemoryStream = new MemoryStream();
-                this.Cookies = new Cookies(this);
+                this.Cookies = Host.Cookies.CreateCookies(this);
                 this.Items = new Dictionary<string, object>();
             }
 
@@ -163,6 +164,13 @@ namespace ServiceStack.ServiceHost.Tests.Formats
             public void AddHeader(string name, string value)
             {
                 this.Headers.Add(name, value);
+            }
+
+            public string GetHeader(string name)
+            {
+                string value;
+                this.Headers.TryGetValue(name, out value);
+                return value;
             }
 
             public void Redirect(string url)
@@ -213,7 +221,7 @@ namespace ServiceStack.ServiceHost.Tests.Formats
             public Dictionary<string, object> Items { get; private set; }
 
             public void SetCookie(Cookie cookie)
-            {                
+            {
             }
 
             public void ClearCookies()

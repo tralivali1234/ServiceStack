@@ -40,7 +40,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     //    {
 
     //        public AppHost()
-    //            : base("Shared dto tests", typeof(Service1).Assembly) { }
+    //            : base("Shared dto tests", typeof(Service1).GetAssembly()) { }
 
     //        public override void Configure(Container container)
     //        {
@@ -49,7 +49,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
     //    AppHost appHost;
 
-    //    [TestFixtureSetUp]
+    //    [OneTimeSetUp]
     //    public void OnTestFixtureSetUp()
     //    {
     //        appHost = new AppHost();
@@ -57,7 +57,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     //        appHost.Start(ListeningOn);
     //    }
 
-    //    [TestFixtureTearDown]
+    //    [OneTimeTearDown]
     //    public void OnTestFixtureTearDown()
     //    {
     //        appHost.Dispose();

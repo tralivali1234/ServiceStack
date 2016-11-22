@@ -60,22 +60,22 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
     public class PartialContentAppHost : AppHostHttpListenerBase
     {
-        public PartialContentAppHost() : base(typeof(PartialFile).Name, typeof(PartialFile).Assembly) { }
+        public PartialContentAppHost() : base(typeof(PartialFile).Name, typeof(PartialFile).GetAssembly()) { }
         public override void Configure(Container container) {}
     }
 
     [TestFixture]
     public class PartialContentResultTests
     {
-        public const string BaseUri = Config.ServiceStackBaseUri;
-        public const string ListeningOn = Config.AbsoluteBaseUri;
+        string BaseUri = Config.ServiceStackBaseUri;
+        string ListeningOn = Config.AbsoluteBaseUri;
 
         private PartialContentAppHost appHost;
 
         readonly FileInfo uploadedFile = new FileInfo("~/TestExistingDir/upload.html".MapProjectPath());
         readonly FileInfo uploadedTextFile = new FileInfo("~/TestExistingDir/textfile.txt".MapProjectPath());
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TextFixtureSetUp()
         {
             try
@@ -90,7 +90,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             if (appHost != null) appHost.Dispose();

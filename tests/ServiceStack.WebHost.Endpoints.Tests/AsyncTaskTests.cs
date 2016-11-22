@@ -12,7 +12,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     {
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new AsyncTaskAppHost()
@@ -20,7 +20,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -33,7 +33,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public class AsyncTaskAppHost : AppHostHttpListenerBase
         {
             public AsyncTaskAppHost() 
-                : base(typeof(AsyncTaskAppHost).Name, typeof(AsyncTaskAppHost).Assembly) {}
+                : base(typeof(AsyncTaskAppHost).Name, typeof(AsyncTaskAppHost).GetAssembly()) {}
 
             public override void Configure(Container container) {}
         }
@@ -315,6 +315,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         public async Task<GetFactorialResponse> Any(ThrowErrorAwaitAsync request)
         {
+            await Task.Delay(0);
             throw new HttpError(HttpStatusCode.Forbidden, HttpStatusCode.Forbidden.ToString(), request.Message ?? "Request is forbidden");
         }
 
@@ -336,7 +337,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
      
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new AsyncTaskTests.AsyncTaskAppHost()
@@ -344,7 +345,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

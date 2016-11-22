@@ -32,10 +32,11 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public class AppHost : AppHostHttpListenerBase
         {
             public AppHost()
-                : base(typeof(CustomFormatTests).Name, typeof(CustomFormatTests).Assembly) { }
+                : base(typeof(CustomFormatTests).Name, typeof(CustomFormatTests).GetAssembly()) { }
 
             public override void Configure(Container container)
             {
+                ContentTypes.ClearCustomFilters();
                 SetConfig(new HostConfig
                 {
                     DefaultContentType = MimeTypes.Json,
@@ -46,7 +47,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new AppHost()
@@ -54,7 +55,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -66,7 +67,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var json = Config.AbsoluteBaseUri.CombineWith("hellojson", "World")
                 .GetStringFromUrl(accept: "text/html,*/*;q=0.9");
 
-            Assert.That(json, Is.EqualTo("{\"Name\":\"Hello, World!\"}"));
+            Assert.That(json, Is.EqualTo("{\"Name\":\"Hello, World!\"}")
+                            .Or.EqualTo("{\"name\":\"Hello, World!\"}"));
         }
     }
 }

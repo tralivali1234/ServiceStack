@@ -10,6 +10,7 @@ using Funq;
 using NUnit.Framework;
 using ServiceStack.Configuration;
 using ServiceStack.Data;
+using ServiceStack.DataAnnotations;
 using ServiceStack.OrmLite;
 using ServiceStack.Testing;
 using ServiceStack.Text;
@@ -51,6 +52,13 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     {
         public int Age { get; set; }
         public bool Alive { get; set; }
+    }
+
+    public class PagingTest
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int Value { get; set; }
     }
 
     // Implementation
@@ -137,7 +145,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         private ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void TestFixtureSetUp()
         {
             appHost = new BasicAppHost().Init();
@@ -157,7 +165,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             }
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();

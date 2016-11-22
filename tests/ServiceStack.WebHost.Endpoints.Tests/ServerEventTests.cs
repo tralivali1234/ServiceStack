@@ -5,6 +5,9 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Funq;
+#if !NETCORE_SUPPORT
+using MySql.Data.MySqlClient.Memcached;
+#endif
 using NUnit.Framework;
 using ServiceStack.Auth;
 using ServiceStack.Configuration;
@@ -145,7 +148,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     public class ServerEventsAppHost : AppSelfHostBase
     {
         public ServerEventsAppHost()
-            : base(typeof(ServerEventsAppHost).Name, typeof(ServerEventsAppHost).Assembly) { }
+            : base(typeof(ServerEventsAppHost).Name, typeof(ServerEventsAppHost).GetAssembly()) { }
 
         public bool UseRedisServerEvents { get; set; }
         public bool LimitToAuthenticatedUsers { get; set; }
@@ -220,6 +223,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
     }
 
     [TestFixture]
+
     public class RedisServerEventsTests : ServerEventsTests
     {
         protected override ServiceStackHost CreateAppHost()
@@ -242,9 +246,14 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         protected abstract ServiceStackHost CreateAppHost();
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
+
+            var redisEvents = appHost.Resolve<IServerEvents>() as RedisServerEvents;
+            if (redisEvents != null)
+                redisEvents.Dispose();
+
             appHost.Dispose();
         }
 
@@ -262,22 +271,22 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
 
         [Test]
-        public async void Can_connect_to_ServerEventsStream()
+        public async Task Can_connect_to_ServerEventsStream()
         {
             using (var client = CreateServerEventsClient())
             {
                 var task = client.Connect();
                 var connectMsg = await task.WaitAsync();
 
-                Assert.That(connectMsg.HeartbeatUrl, Is.StringStarting(Config.AbsoluteBaseUri));
-                Assert.That(connectMsg.UnRegisterUrl, Is.StringStarting(Config.AbsoluteBaseUri));
+                Assert.That(connectMsg.HeartbeatUrl, Does.StartWith(Config.AbsoluteBaseUri));
+                Assert.That(connectMsg.UnRegisterUrl, Does.StartWith(Config.AbsoluteBaseUri));
                 Assert.That(connectMsg.HeartbeatIntervalMs, Is.GreaterThan(0));
                 Assert.That(connectMsg.IdleTimeoutMs, Is.EqualTo(TimeSpan.FromSeconds(30).TotalMilliseconds));
             }
         }
 
         [Test]
-        public async void Does_fire_onJoin_events()
+        public async Task Does_fire_onJoin_events()
         {
             using (var client = CreateServerEventsClient())
             {
@@ -285,7 +294,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 var taskMsg = client.WaitForNextCommand();
 
                 var connectMsg = await taskConnect.WaitAsync();
-                Assert.That(connectMsg.HeartbeatUrl, Is.StringStarting(Config.AbsoluteBaseUri));
+                Assert.That(connectMsg.HeartbeatUrl, Does.StartWith(Config.AbsoluteBaseUri));
 
                 var joinMsg = (ServerEventJoin)await taskMsg.WaitAsync();
                 Assert.That(joinMsg.DisplayName, Is.EqualTo(client.ConnectionInfo.DisplayName));
@@ -293,13 +302,11 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
 
         [Test]
-        public async void Does_fire_onJoin_events_for_multiple_Channels()
+        public async Task Does_fire_onJoin_events_for_multiple_Channels()
         {
             var channels = new[] { "A", "B", "C" };
             using (var client = CreateServerEventsClient(channels))
             {
-                var taskConnect = client.Connect();
-
                 var joinMsgs = new List<ServerEventJoin>();
                 var allJoinsReceived = new TaskCompletionSource<bool>();
 
@@ -314,10 +321,10 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                     }
                 };
 
-                var connectMsg = await taskConnect.WaitAsync(2000);
-                Assert.That(connectMsg.HeartbeatUrl, Is.StringStarting(Config.AbsoluteBaseUri));
+                var connectMsg = await client.Connect().WaitAsync(2000);
+                Assert.That(connectMsg.HeartbeatUrl, Does.StartWith(Config.AbsoluteBaseUri));
 
-                await allJoinsReceived.Task;
+                await allJoinsReceived.Task.WaitAsync(3000);
 
                 Assert.That(joinMsgs.Count, Is.EqualTo(channels.Length));
                 for (int i = 0; i < channels.Length; i++)
@@ -330,7 +337,38 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
 
         [Test]
-        public async void Does_fire_all_callbacks()
+        public async Task Does_not_fire_UnobservedTaskException()
+        {
+            var unobservedTaskException = false;
+            TaskScheduler.UnobservedTaskException += (s, e) =>
+            {
+                unobservedTaskException = true;
+            };
+            using (var client1 = CreateServerEventsClient())
+            {
+                using (var connectedEvent = new ManualResetEvent(false))
+                {
+                    client1.OnConnect += e => { connectedEvent.Set(); };
+                    client1.Start();
+                    Assert.True(connectedEvent.WaitOne(TimeSpan.FromSeconds(10)));
+                }
+
+                // Ensure that "stream.ReadAsync" is called
+                await Task.Delay(200);
+            }
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+                
+            // collect finalized objects
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            Assert.IsFalse(unobservedTaskException);
+        }
+
+        [Test]
+        public async Task Does_fire_all_callbacks()
         {
             using (var client1 = CreateServerEventsClient())
             {
@@ -340,7 +378,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 var errors = new List<Exception>();
 
                 client1.OnConnect = e => connectMsg = e;
-                client1.OnCommand = commands.Add;
+                client1.OnCommand = e => commands.Add(e);
                 client1.OnMessage = msgs.Add;
                 client1.OnException = errors.Add;
 
@@ -385,7 +423,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
                 Assert.That(joinMsg, Is.Not.Null, "joinMsg == null");  //2nd connection
                 Assert.That(leaveMsg, Is.Not.Null, "leaveMsg == null");
-                Assert.That(commands.Count, Is.EqualTo(2)); //join + leave
+                Assert.That(commands.Count, Is.GreaterThanOrEqualTo(2)); //join + leave
                 Assert.That(errors.Count, Is.EqualTo(0));
             }
         }
@@ -405,9 +443,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 await Task.WhenAll(client1.Connect(), client1.WaitForNextCommand()); //connect1 + join1
 
                 "client2.Connect()...".Print();
-                await Task.WhenAll(
-                    client2.Connect(), client2.WaitForNextCommand(), //connect2 + join2
-                    client1.WaitForNextCommand()); //join2
+                var join1 = client1.WaitForNextCommand();
+                await Task.WhenAll(client2.Connect(), client2.WaitForNextCommand(), join1); //connect2 + join2 + join1
 
                 "Waiting for Msg1...".Print();
                 var taskMsg1 = client1.WaitForNextMessage();
@@ -541,8 +578,6 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
                     var msg1 = await msgTask.WaitAsync();
 
-                    msgTask = client1.WaitForNextMessage();
-
                     serverEvents.Reset(); //Dispose all existing subscriptions
 
                     using (var client2 = CreateServerEventsClient())
@@ -551,11 +586,12 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
                         await Task.WhenAny(client1.Connect(), Task.Delay(2000));
 
+                        msgTask = client1.WaitForNextMessage();
                         client2.PostChat("msg2 from client2");
                     }
 
-                    "Waiting for 30s...".Print();
-                    var msg2 = await msgTask.WaitAsync(3000);
+                    "Waiting for max 5s...".Print();
+                    var msg2 = await msgTask.WaitAsync(5000);
 
                     var chatMsg2 = msg2.Json.FromJson<ChatMessage>();
 
@@ -823,6 +859,12 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                     clientABCD.Connect()
                 );
 
+                var channelAsubscribers = clientA.GetChannelSubscribers();
+                Assert.That(channelAsubscribers.Count, Is.EqualTo(4));
+
+                var channelABsubscribers = clientA.GetChannelSubscribers();
+                Assert.That(channelABsubscribers.Count, Is.EqualTo(4));
+
                 "Publishing Msg Batch #1 ...".Print();
                 clientA.PostChat("#1 hello to A", channel: "A");
                 clientA.PostChat("#2 hello to B", channel: "B");
@@ -923,6 +965,16 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 Assert.That(joinB.Count, Is.EqualTo(2));  //B + [A (B)]
                 Assert.That(joinAB.Count, Is.EqualTo(2)); //[(A) B] + [A (B)]
 
+                var channelAsubscribers = clientA.GetChannelSubscribers();
+                Assert.That(channelAsubscribers.Count, Is.EqualTo(2));
+
+                var channelBsubscribers = clientB.GetChannelSubscribers();
+                Assert.That(channelBsubscribers.Count, Is.EqualTo(2));
+
+                var channelABsubscribers = clientAB.GetChannelSubscribers();
+                Assert.That(channelABsubscribers.Count, Is.EqualTo(3));
+
+
                 var usersA = clientA.ServiceClient.Get(new GetEventSubscribers { Channels = new[] { "A" } });
                 var usersB = clientA.ServiceClient.Get(new GetEventSubscribers { Channels = new[] { "B" } });
                 var usersAB = clientA.ServiceClient.Get(new GetEventSubscribers { Channels = new[] { "A", "B" } });
@@ -1021,6 +1073,124 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 Assert.That(leaveB.Count, Is.EqualTo(0));
             }
         }
+
+        [Test]
+        public async Task Can_subscribe_to_channels_whilst_connected()
+        {
+            var msgs1 = new List<ServerEventMessage>();
+            var msgs2 = new List<ServerEventMessage>();
+
+            using (var client1 = CreateServerEventsClient("A"))
+            using (var client2 = CreateServerEventsClient("B"))
+            {
+                client1.OnMessage = msgs1.Add;
+                client2.OnMessage = msgs2.Add;
+
+                await Task.WhenAll(
+                    client1.Connect(),
+                    client2.Connect()
+                );
+
+                Assert.That(client1.Channels, Is.EquivalentTo(new[] {"A" }));
+
+                client2.PostChat("#1 hello to B", channel: "B");
+                await Task.Delay(500);
+
+                Assert.That(msgs1.Count, Is.EqualTo(0));
+                Assert.That(msgs2.Count, Is.EqualTo(1));
+
+                await client1.SubscribeToChannelsAsync("B");
+                await Task.Delay(500);
+
+                client2.PostChat("#2 hello to B", channel: "B");
+                client2.PostChat("#3 hello to C", channel: "C");
+                await Task.Delay(500);
+
+                Assert.That(msgs1.Count, Is.EqualTo(1));
+                Assert.That(msgs2.Count, Is.EqualTo(2));
+
+                Assert.That(client1.Channels, Is.EquivalentTo(new[] { "A", "B" }));
+                Assert.That(client2.Channels, Is.EquivalentTo(new[] { "B" }));
+
+                Assert.That(client1.EventStreamUri, Is.StringEnding("?channels=A,B"));
+                Assert.That(client2.EventStreamUri, Is.StringEnding("?channels=B"));
+
+                await client1.SubscribeToChannelsAsync("C");
+                await client2.SubscribeToChannelsAsync("C");
+                await Task.Delay(500);
+
+                client2.PostChat("#4 hello to C", channel: "C");
+                await Task.Delay(500);
+
+                Assert.That(msgs1.Count, Is.EqualTo(2));
+                Assert.That(msgs2.Count, Is.EqualTo(3));
+
+                Assert.That(client1.Channels, Is.EquivalentTo(new[] { "A", "B", "C" }));
+                Assert.That(client2.Channels, Is.EquivalentTo(new[] { "B", "C" }));
+
+                Assert.That(client1.EventStreamUri, Is.StringEnding("?channels=A,B,C"));
+                Assert.That(client2.EventStreamUri, Is.StringEnding("?channels=B,C"));
+            }
+        }
+
+        [Test]
+        public async Task Can_unsubscribe_from_channels_whilst_connected()
+        {
+            var msgs1 = new List<ServerEventMessage>();
+            var msgs2 = new List<ServerEventMessage>();
+
+            using (var client1 = CreateServerEventsClient("A","B","C"))
+            using (var client2 = CreateServerEventsClient("B","C"))
+            {
+                client1.OnMessage = msgs1.Add;
+                client2.OnMessage = msgs2.Add;
+
+                await Task.WhenAll(
+                    client1.Connect(),
+                    client2.Connect()
+                );
+
+                Assert.That(client1.Channels, Is.EquivalentTo(new[] { "A","B","C" }));
+
+                client2.PostChat("#1 hello to B", channel: "B");
+                await Task.Delay(500);
+
+                Assert.That(msgs1.Count, Is.EqualTo(1));
+                Assert.That(msgs2.Count, Is.EqualTo(1));
+
+                await client1.UnsubscribeFromChannelsAsync("B");
+                await Task.Delay(500);
+
+                client2.PostChat("#2 hello to B", channel: "B");
+                client2.PostChat("#3 hello to C", channel: "C");
+                await Task.Delay(500);
+
+                Assert.That(msgs1.Count, Is.EqualTo(2));
+                Assert.That(msgs2.Count, Is.EqualTo(3));
+
+                Assert.That(client1.Channels, Is.EquivalentTo(new[] { "A", "C" }));
+                Assert.That(client2.Channels, Is.EquivalentTo(new[] { "B", "C" }));
+
+                Assert.That(client1.EventStreamUri, Is.StringEnding("?channels=A,C"));
+                Assert.That(client2.EventStreamUri, Is.StringEnding("?channels=B,C"));
+
+                await client1.UnsubscribeFromChannelsAsync("C");
+                await client2.UnsubscribeFromChannelsAsync("C");
+                await Task.Delay(500);
+
+                client2.PostChat("#4 hello to C", channel: "C");
+                await Task.Delay(500);
+
+                Assert.That(msgs1.Count, Is.EqualTo(2));
+                Assert.That(msgs2.Count, Is.EqualTo(3));
+
+                Assert.That(client1.Channels, Is.EquivalentTo(new[] { "A" }));
+                Assert.That(client2.Channels, Is.EquivalentTo(new[] { "B" }));
+
+                Assert.That(client1.EventStreamUri, Is.StringEnding("?channels=A"));
+                Assert.That(client2.EventStreamUri, Is.StringEnding("?channels=B"));
+            }
+        }
     }
 
     class Conf
@@ -1052,7 +1222,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             appHost = CreateAppHost();
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
@@ -1115,6 +1285,30 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
                 Assert.That(chatMsg, Is.Not.Null);
                 Assert.That(chatMsg.Message, Is.EqualTo("msg2"));
+            }
+        }
+
+        [Test]
+        public async Task Channels_updated_after_Restart()
+        {
+            using (var client = new ServerEventsClient(Conf.AbsoluteBaseUri, "home"))
+            {
+                Assert.That(client.EventStreamUri.EndsWith("home"));
+
+                await client.AuthenticateAsync(new Authenticate
+                {
+                    provider = CustomCredentialsAuthProvider.Name,
+                    UserName = "user",
+                    Password = "pass",
+                });
+
+                client.Start();
+                client.Channels = new[] {"Foo", "Bar"};
+                client.Restart();
+
+                Thread.Sleep(10); // Wait for SleepBackOffMultiplier to continue
+
+                Assert.That(client.EventStreamUri.EndsWith("Foo,Bar"));
             }
         }
     }

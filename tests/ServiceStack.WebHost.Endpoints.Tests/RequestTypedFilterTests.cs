@@ -67,7 +67,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public class TypedFilterAppHost : AppSelfHostBase
         {
             public TypedFilterAppHost() 
-                : base("Typed Filters", typeof(TypedFilterService).Assembly)
+                : base("Typed Filters", typeof(TypedFilterService).GetAssembly())
             {
             }
 
@@ -94,7 +94,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new TypedFilterAppHost()
@@ -102,7 +102,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.ListeningOn);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();

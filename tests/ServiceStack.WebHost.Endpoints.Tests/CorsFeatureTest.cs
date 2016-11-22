@@ -46,14 +46,14 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             : AppHostHttpListenerBase
         {
             public CorsFeatureAppHostHttpListener()
-                : base("Cors Feature Tests", typeof(CorsFeatureService).Assembly) { }
+                : base("Cors Feature Tests", typeof(CorsFeatureService).GetAssembly()) { }
 
             public override void Configure(Funq.Container container) {}
         }
 
         ServiceStackHost appHost;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void OnTestFixtureSetUp()
         {
             appHost = new CorsFeatureAppHostHttpListener()
@@ -61,7 +61,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void OnTestFixtureTearDown()
         {
             appHost.Dispose();

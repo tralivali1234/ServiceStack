@@ -28,6 +28,8 @@ namespace ServiceStack
 
         public string HtmlRedirect { get; set; }
 
+        public string HtmlLogoutRedirect { get; set; }
+
         public bool IncludeAuthMetadataProvider { get; set; }
 
         public bool ValidateUniqueEmails { get; set; }
@@ -42,6 +44,8 @@ namespace ServiceStack
         public TimeSpan? PermanentSessionExpiry { get; set; }
 
         public int? MaxLoginAttempts { get; set; }
+
+        public Func<IServiceBase, Authenticate, AuthenticateResponse, object> AuthResponseDecorator { get; set; }
 
         public bool IncludeAssignRoleServices
         {
@@ -107,7 +111,6 @@ namespace ServiceStack
         public void Register(IAppHost appHost)
         {
             AuthenticateService.Init(sessionFactory, authProviders);
-            AuthenticateService.HtmlRedirect = HtmlRedirect;
 
             var unitTest = appHost == null;
             if (unitTest) return;
@@ -125,6 +128,11 @@ namespace ServiceStack
 
             if (IncludeAuthMetadataProvider && appHost.TryResolve<IAuthMetadataProvider>() == null)
                 appHost.Register<IAuthMetadataProvider>(new AuthMetadataProvider());
+
+            authProviders.OfType<IAuthPlugin>().Each(x => x.Register(appHost, this));
+
+            AuthenticateService.HtmlRedirect = HtmlRedirect;
+            AuthenticateService.AuthResponseDecorator = AuthResponseDecorator;
         }
 
         public void AfterPluginsLoaded(IAppHost appHost)
@@ -138,7 +146,7 @@ namespace ServiceStack
                     ? AuthEvents.First()
                     : new MultiAuthEvents(AuthEvents);
 
-                appHost.GetContainer().Register<IAuthEvents>(authEvents);
+                appHost.GetContainer().Register(authEvents);
             }
             else if (AuthEvents.Count > 0)
             {
@@ -165,9 +173,8 @@ namespace ServiceStack
             if (feature == null)
                 return ValidUserNameRegEx.IsMatch(userName);
 
-            return feature.IsValidUsernameFn != null
-                ? feature.IsValidUsernameFn(userName)
-                : feature.ValidUserNameRegEx.IsMatch(userName);
+            return feature.IsValidUsernameFn?.Invoke(userName) 
+                ?? feature.ValidUserNameRegEx.IsMatch(userName);
         }
     }
 }

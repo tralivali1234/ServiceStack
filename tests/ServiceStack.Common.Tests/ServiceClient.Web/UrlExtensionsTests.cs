@@ -39,7 +39,7 @@ namespace ServiceStack.Common.Tests.ServiceClient.Web
         [Test]
         public void Can_use_nested_classes_as_Request_DTOs()
         {
-            using (var appHost = new BasicAppHost(typeof(NestedService).Assembly){}.Init())
+            using (var appHost = new BasicAppHost(typeof(NestedService).GetAssembly()).Init())
             {
                 var root = (Root)appHost.ExecuteService(new Root { Id = 1 });
                 Assert.That(root.Id, Is.EqualTo(1));
@@ -87,7 +87,7 @@ namespace ServiceStack.Common.Tests.ServiceClient.Web
         {
             var fullGenericTypeName = "List<Poco>";
 
-            var textNode = MetadataExtensions.ParseTypeIntoNodes(fullGenericTypeName);
+            var textNode = fullGenericTypeName.ParseTypeIntoNodes();
 
             textNode.PrintDump();
 
@@ -130,6 +130,19 @@ namespace ServiceStack.Common.Tests.ServiceClient.Web
             Assert.That(textNode.Children[0].Children[1].Children.Count, Is.EqualTo(2));
             Assert.That(textNode.Children[0].Children[1].Children[0].Text, Is.EqualTo("String"));
             Assert.That(textNode.Children[0].Children[1].Children[1].Text, Is.EqualTo("Poco"));
+        }
+
+        [Test]
+        public void Can_SplitGenericArgs()
+        {
+            var args = MetadataExtensions.SplitGenericArgs("String,Int64,Boolean");
+            Assert.That(args, Is.EquivalentTo(new[] {"String", "Int64", "Boolean"}));
+
+            args = MetadataExtensions.SplitGenericArgs("List<Dictionary<String,Dictionary<String,Poco>>>");
+            Assert.That(args, Is.EquivalentTo(new[] { "List<Dictionary<String,Dictionary<String,Poco>>>" }));
+
+            args = MetadataExtensions.SplitGenericArgs("String,List<Dictionary<String,Dictionary<String,Poco>>>,Int64");
+            Assert.That(args, Is.EquivalentTo(new[] { "String", "List<Dictionary<String,Dictionary<String,Poco>>>", "Int64" }));
         }
 
     }

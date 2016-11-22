@@ -4,7 +4,6 @@ using System.IO;
 using System.Net;
 using System.Runtime.Serialization;
 using ServiceStack.Model;
-using ServiceStack.Text;
 
 namespace ServiceStack.WebHost.Endpoints.Tests.Support.Services
 {
@@ -58,6 +57,9 @@ namespace ServiceStack.WebHost.Endpoints.Tests.Support.Services
     [Route("/throw404")]
     public class Throw404 { }
 
+    [Route("/throw404description")]
+    public class Throw404Description { }
+
     [Route("/throwcustom404")]
     public class ThrowCustom404 { }
 
@@ -67,9 +69,18 @@ namespace ServiceStack.WebHost.Endpoints.Tests.Support.Services
     [Route("/return404result")]
     public class Return404Result { }
 
+    [Route("/throwwebex")]
+    public class ThrowWebServiceException : IHasResponseStatus
+    {
+        public int? StatusCode { get; set; }
+        public string StatusDescription { get; set; }
+        public string Message { get; set; }
+        public ResponseStatus ResponseStatus { get; set; }
+    }
+
     public class Custom404Exception : Exception, IResponseStatusConvertible, IHasStatusCode
     {
-        public Custom404Exception(string message) : base(message) {}
+        public Custom404Exception(string message) : base(message) { }
 
         public ResponseStatus ToResponseStatus()
         {
@@ -122,6 +133,14 @@ namespace ServiceStack.WebHost.Endpoints.Tests.Support.Services
             throw HttpError.NotFound("Custom Status Description");
         }
 
+        public object Any(Throw404Description request)
+        {
+            throw new HttpError(HttpStatusCode.NotFound)
+            {
+                StatusDescription = "Custom Status Description"
+            };
+        }
+
         public object Any(ThrowCustom404 request)
         {
             throw new Custom404Exception("Custom Status Description");
@@ -135,6 +154,16 @@ namespace ServiceStack.WebHost.Endpoints.Tests.Support.Services
         public object Any(Return404Result request)
         {
             return new HttpResult(HttpStatusCode.NotFound, "Custom Status Description");
+        }
+
+        public object Any(ThrowWebServiceException request)
+        {
+            throw new WebServiceException(request.Message ?? "Message")
+            {
+                StatusCode = request.StatusCode ?? 500,
+                StatusDescription = request.StatusDescription ?? "StatusDescription",
+                ResponseDto = request,
+            };
         }
     }
 

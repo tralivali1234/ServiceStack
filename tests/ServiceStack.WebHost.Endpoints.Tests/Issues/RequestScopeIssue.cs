@@ -7,7 +7,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.Issues
     public class RequestScopeAppHost : AppSelfHostBase
     {
         public RequestScopeAppHost() 
-            : base(typeof(RequestScopeAppHost).Name, typeof(RequestScopeService).Assembly) {}
+            : base(typeof(RequestScopeAppHost).Name, typeof(RequestScopeService).GetAssembly()) {}
 
         private static int counter = 0;
 
@@ -53,7 +53,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests.Issues
                 .Start(Config.AbsoluteBaseUri);
         }
 
-        [TestFixtureTearDown]
+        [OneTimeTearDown]
         public void TestFixtureTearDown()
         {
             appHost.Dispose();
