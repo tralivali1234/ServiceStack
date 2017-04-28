@@ -45,7 +45,7 @@ namespace ServiceStack
 
         private IHttpHandler GetHandlerForPathParts(string[] pathParts)
         {
-            var pathController = pathParts[0].ToLower();
+            var pathController = pathParts[0].ToLowerInvariant();
             if (pathParts.Length == 1)
             {
                 if (pathController == "metadata")
@@ -54,7 +54,7 @@ namespace ServiceStack
                 return null;
             }
 
-            var pathAction = pathParts[1].ToLower();
+            var pathAction = pathParts[1].ToLowerInvariant();
 #if !NETSTANDARD1_6
             if (pathAction == "wsdl")
             {
@@ -111,9 +111,6 @@ namespace ServiceStack
         {
             if (metadata != null)
             {
-                if (HostContext.Config.HandlerFactoryPath != null && href[0] == '/')
-                    href = "/" + HostContext.Config.HandlerFactoryPath + href;
-
                 metadata.PluginLinks[href] = title;
             }
             return metadata;
@@ -129,9 +126,6 @@ namespace ServiceStack
         {
             if (metadata != null)
             {
-                if (HostContext.Config.HandlerFactoryPath != null && href[0] == '/')
-                    href = "/" + HostContext.Config.HandlerFactoryPath + href;
-
                 metadata.DebugLinks[href] = title;
             }
             return metadata;

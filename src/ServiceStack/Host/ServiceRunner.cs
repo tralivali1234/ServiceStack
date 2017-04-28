@@ -48,7 +48,7 @@ namespace ServiceStack.Host
             var requestLogger = AppHost.TryResolve<IRequestLogger>();
             if (requestLogger != null)
             {
-                requestContext.SetItem("_requestDurationStopwatch", Stopwatch.StartNew());
+                requestContext.SetItem(Keywords.RequestDuration, Stopwatch.StartNew());
             }
             
             OnBeforeExecute(requestContext, request);
@@ -61,7 +61,7 @@ namespace ServiceStack.Host
             {
                 try
                 {
-                    var stopWatch = requestContext.GetItem("_requestDurationStopwatch") as Stopwatch;
+                    var stopWatch = requestContext.GetItem(Keywords.RequestDuration) as Stopwatch;
                     if (stopWatch != null)
                     {
                         requestLogger.Log(requestContext, request, response, stopWatch.Elapsed);
@@ -124,7 +124,7 @@ namespace ServiceStack.Host
                     {
                         taskResponse.Start();
                     }
-                    return taskResponse.ContinueWith(task =>
+                    return HostContext.Async.ContinueWith(request, taskResponse, task =>
                     {
                         if (task.IsFaulted)
                         {

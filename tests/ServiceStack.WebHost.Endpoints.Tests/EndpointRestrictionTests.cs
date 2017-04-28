@@ -37,7 +37,8 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         public void ShouldDenyAccessWhen<TRequestDto>(RequestAttributes withScenario)
         {
-            ShouldThrow<UnauthorizedAccessException>(() => appHost.ExecuteService(typeof(TRequestDto).New(), withScenario));
+            ShouldThrow<UnauthorizedAccessException>(() => 
+                appHost.ExecuteService(typeof(TRequestDto).New(), withScenario));
         }
 
         public void ShouldDenyAccessForAllOtherScenarios<TRequestDto>(params RequestAttributes[] notIncluding)
@@ -118,9 +119,19 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         [Test]
         public void InternalRestriction_allows_calls_from_Localhost_and_LocalSubnet()
         {
+            ShouldAllowAccessWhen<InProcessRestriction>(RequestAttributes.InProcess);
             ShouldAllowAccessWhen<InternalRestriction>(RequestAttributes.Localhost);
             ShouldAllowAccessWhen<InternalRestriction>(RequestAttributes.LocalSubnet);
             ShouldDenyAccessWhen<LocalSubnetRestriction>(RequestAttributes.External);
+        }
+
+        [Test]
+        public void InProcessRestriction_does_not_allow_any_other_NetworkAccess()
+        {
+            ShouldAllowAccessWhen<InProcessRestriction>(RequestAttributes.InProcess);
+            ShouldDenyAccessWhen<InProcessRestriction>(RequestAttributes.Localhost);
+            ShouldDenyAccessWhen<InProcessRestriction>(RequestAttributes.LocalSubnet);
+            ShouldDenyAccessWhen<InProcessRestriction>(RequestAttributes.External);
         }
 
         [Test]
@@ -132,7 +143,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             ShouldDenyAccessWhen<SecureLocalSubnetRestriction>(RequestAttributes.Secure | RequestAttributes.Localhost);
             ShouldAllowAccessWhen<SecureLocalSubnetRestriction>(RequestAttributes.Secure | RequestAttributes.LocalSubnet);
 
-            ShouldDenyAccessWhen<SecureLocalSubnetRestriction>(RequestAttributes.Secure | RequestAttributes.InternalNetworkAccess);
+            ShouldDenyAccessWhen<SecureLocalSubnetRestriction>(RequestAttributes.Secure | RequestAttributes.External);
             ShouldDenyAccessForOtherNetworkAccessScenarios<SecureLocalSubnetRestriction>(RequestAttributes.LocalSubnet);
         }
 
@@ -257,7 +268,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             const RequestAttributes format =
                 RequestAttributes.Soap11 | RequestAttributes.Soap12 | RequestAttributes.Xml | RequestAttributes.Json |
                 RequestAttributes.Jsv | RequestAttributes.ProtoBuf | RequestAttributes.Csv | RequestAttributes.Html |
-                RequestAttributes.Yaml | RequestAttributes.MsgPack | RequestAttributes.FormatOther;
+                RequestAttributes.Wire | RequestAttributes.MsgPack | RequestAttributes.FormatOther;
             Assert.That((format.ToAllowedFlagsSet() & format) == format);
 
             const RequestAttributes endpoint =

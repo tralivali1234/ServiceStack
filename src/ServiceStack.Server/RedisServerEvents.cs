@@ -55,12 +55,12 @@ namespace ServiceStack
 
         public class RedisIndex
         {
-            public const string Subscription = "sse:id:{0}";
-            public const string ActiveSubscriptionsSet = "sse:ids";
-            public const string ChannelSet = "sse:channel:{0}";
-            public const string UserIdSet = "sse:userid:{0}";
-            public const string UserNameSet = "sse:username:{0}";
-            public const string SessionSet = "sse:session:{0}";
+            public static string Subscription = "sse:id:{0}";
+            public static string ActiveSubscriptionsSet = "sse:ids";
+            public static string ChannelSet = "sse:channel:{0}";
+            public static string UserIdSet = "sse:userid:{0}";
+            public static string UserNameSet = "sse:username:{0}";
+            public static string SessionSet = "sse:session:{0}";
         }
 
         public IRedisClientsManager clientsManager;
@@ -409,7 +409,14 @@ namespace ServiceStack
             local.Reset();
             using (var redis = clientsManager.GetClient())
             {
-                redis.FlushDb();
+                var keysToDelete = new List<string> { RedisIndex.ActiveSubscriptionsSet };
+
+                keysToDelete.AddRange(redis.SearchKeys(RedisIndex.Subscription.Replace("{0}", "*")));
+                keysToDelete.AddRange(redis.SearchKeys(RedisIndex.ChannelSet.Replace("{0}", "*")));
+                keysToDelete.AddRange(redis.SearchKeys(RedisIndex.UserIdSet.Replace("{0}", "*")));
+                keysToDelete.AddRange(redis.SearchKeys(RedisIndex.UserNameSet.Replace("{0}", "*")));
+                keysToDelete.AddRange(redis.SearchKeys(RedisIndex.SessionSet.Replace("{0}", "*")));
+                redis.RemoveAll(keysToDelete);
             }
         }
 
@@ -541,6 +548,22 @@ namespace ServiceStack
 
         public void Dispose()
         {
+            try
+            {
+                foreach (var entry in local.Subcriptions)
+                {
+                    var info = local.GetSubscriptionInfo(entry.Key);
+                    if (info != null)
+                    {
+                        RemoveSubscriptionFromRedis(info);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Error trying to remove local.Subcriptions during Dispose()...", ex);
+            }
+
             if (RedisPubSub != null)
                 RedisPubSub.Dispose();
 

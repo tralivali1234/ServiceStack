@@ -201,7 +201,7 @@ namespace ServiceStack.NativeTypes.TypeScript
 
             if (!string.IsNullOrEmpty(globalNamespace))
             {
-                var moduleDef = Config.ExportAsTypes ? "" : "declare ";
+                var moduleDef = Config.ExportAsTypes ? "export " : "declare ";
                 sb.AppendLine();
                 sb.AppendLine("{0}module {1}".Fmt(moduleDef, globalNamespace.SafeToken()));
                 sb.AppendLine("{");
@@ -360,26 +360,29 @@ namespace ServiceStack.NativeTypes.TypeScript
                 {
                     interfaces.Add(implStr);
 
-                    if (implStr.StartsWith("IReturn<"))
-                    {
-                        var types = implStr.RightPart('<');
-                        var returnType = types.Substring(0, types.Length - 1);
+                    if (Config.ExportAsTypes)
+                    { 
+                        if (implStr.StartsWith("IReturn<"))
+                        {
+                            var types = implStr.RightPart('<');
+                            var returnType = types.Substring(0, types.Length - 1);
 
-                        if (returnType == "any")
-                            returnType = "Object";
+                            if (returnType == "any")
+                                returnType = "Object";
 
-                        // This is to avoid invalid syntax such as "return new string()"
-                        string replaceReturnType;
-                        if (primitiveDefaultValues.TryGetValue(returnType, out replaceReturnType))
-                            returnType = replaceReturnType;
+                            // This is to avoid invalid syntax such as "return new string()"
+                            string replaceReturnType;
+                            if (primitiveDefaultValues.TryGetValue(returnType, out replaceReturnType))
+                                returnType = replaceReturnType;
 
-                        responseTypeExpression = replaceReturnType == null ?
-                            "createResponse() {{ return new {0}(); }}".Fmt(returnType) :
-                            "createResponse() {{ return {0}; }}".Fmt(returnType);
-                    }
-                    else if (implStr == "IReturnVoid")
-                    {
-                        responseTypeExpression = "createResponse() {}";
+                            responseTypeExpression = replaceReturnType == null ?
+                                "createResponse() {{ return new {0}(); }}".Fmt(returnType) :
+                                "createResponse() {{ return {0}; }}".Fmt(returnType);
+                        }
+                        else if (implStr == "IReturnVoid")
+                        {
+                            responseTypeExpression = "createResponse() {}";
+                        }
                     }
                 }
 
@@ -419,6 +422,18 @@ namespace ServiceStack.NativeTypes.TypeScript
                 {
                     sb.AppendLine("{0}{1}: number; //{2}".Fmt(
                         "Version".PropertyStyle(), isClass ? "" : "?", Config.AddImplicitVersion));
+                }
+
+                if (Config.ExportAsTypes)
+                {
+                    if (type.Name == "IReturn`1")
+                    {
+                        sb.AppendLine("createResponse() : T;");
+                    }
+                    else if (type.Name == "IReturnVoid")
+                    {
+                        sb.AppendLine("createResponse() : void;");
+                    }
                 }
 
                 AddProperties(sb, type,

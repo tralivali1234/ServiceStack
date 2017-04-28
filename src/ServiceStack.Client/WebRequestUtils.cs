@@ -56,7 +56,7 @@ namespace ServiceStack
             if (pos < 0)
                 throw new AuthenticationException($"Authentication header not supported: {authHeader}");
 
-            method = authHeader.Substring(0, pos).ToLower();
+            method = authHeader.Substring(0, pos).ToLowerInvariant();
             string remainder = authHeader.Substring(pos + 1);
 
             // split the rest by comma, then =
@@ -166,7 +166,7 @@ namespace ServiceStack
         }
 
 #if NETFX_CORE
-        internal static string CalculateMD5Hash(string input)
+        public static string CalculateMD5Hash(string input)
         {
             var alg = HashAlgorithmProvider.OpenAlgorithm("MD5");
             IBuffer buff = CryptographicBuffer.ConvertStringToBinary(input, BinaryStringEncoding.Utf8);
@@ -177,7 +177,7 @@ namespace ServiceStack
 #endif
 
 #if !(NETFX_CORE || SL5 || PCL || NETSTANDARD1_1)
-        internal static string CalculateMD5Hash(string input)
+        public static string CalculateMD5Hash(string input)
         {
             // copied/pasted by adamfowleruk
             // step 1, calculate MD5 hash from input

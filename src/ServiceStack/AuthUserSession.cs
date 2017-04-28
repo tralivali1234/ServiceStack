@@ -55,7 +55,8 @@ namespace ServiceStack
         [DataMember(Order = 39)] public virtual string ProfileUrl { get; set; }
         [DataMember(Order = 40)] public virtual string Sequence { get; set; }
         [DataMember(Order = 41)] public long Tag { get; set; }
-        [DataMember(Order = 42)] public List<IAuthTokens> ProviderOAuthAccess { get; set; }
+        [DataMember(Order = 42)] public string AuthProvider { get; set; }
+        [DataMember(Order = 43)] public List<IAuthTokens> ProviderOAuthAccess { get; set; }
 
         public virtual bool IsAuthorized(string provider)
         {
@@ -65,14 +66,14 @@ namespace ServiceStack
 
         public virtual bool HasPermission(string permission, IAuthRepository authRepo)
         {
-            if (UserAuthId == null)
-                return false;
-
             if (!FromToken) //If populated from a token it should have the complete list of permissions
             {
                 var managesRoles = authRepo as IManageRoles;
                 if (managesRoles != null)
                 {
+                    if (UserAuthId == null)
+                        return false;
+
                     return managesRoles.HasPermission(this.UserAuthId, permission);
                 }
             }
@@ -82,14 +83,14 @@ namespace ServiceStack
 
         public virtual bool HasRole(string role, IAuthRepository authRepo)
         {
-            if (UserAuthId == null)
-                return false;
-
             if (!FromToken) //If populated from a token it should have the complete list of roles
             {
                 var managesRoles = authRepo as IManageRoles;
                 if (managesRoles != null)
                 {
+                    if (UserAuthId == null)
+                        return false;
+
                     return managesRoles.HasRole(this.UserAuthId, role);
                 }
             }

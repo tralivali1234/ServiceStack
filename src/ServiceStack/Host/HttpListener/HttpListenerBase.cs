@@ -1,6 +1,6 @@
 ﻿#if !NETSTANDARD1_6 
 
-//Copyright (c) Service Stack LLC. All Rights Reserved.
+//Copyright (c) ServiceStack, Inc. All Rights Reserved.
 //License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
 using System;
@@ -237,7 +237,7 @@ namespace ServiceStack.Host.HttpListener
             try
             {
                 var task = this.ProcessRequestAsync(context);
-                task.ContinueWith(x => HandleError(x.Exception, context), TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.AttachedToParent);
+                HostContext.Async.ContinueWith(task, x => HandleError(x.Exception, context), TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.AttachedToParent);
 
                 if (task.Status == TaskStatus.Created)
                 {

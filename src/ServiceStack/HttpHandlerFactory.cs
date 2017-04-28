@@ -13,34 +13,32 @@ namespace ServiceStack
     public class HttpHandlerFactory : IHttpHandlerFactory
     {
         static readonly List<string> WebHostRootFileNames = new List<string>();
-        private static readonly string WebHostPhysicalPath = null;
-        private static readonly string DefaultRootFileName = null;
+        private static string WebHostPhysicalPath = null;
+        private static string DefaultRootFileName = null;
         //internal static string ApplicationBaseUrl = null;
-        private static readonly IHttpHandler DefaultHttpHandler = null;
-        private static readonly RedirectHttpHandler NonRootModeDefaultHttpHandler = null;
-        private static readonly IHttpHandler ForbiddenHttpHandler = null;
-        private static readonly IHttpHandler NotFoundHttpHandler = null;
+        private static IHttpHandler DefaultHttpHandler = null;
+        private static RedirectHttpHandler NonRootModeDefaultHttpHandler = null;
+        private static IHttpHandler ForbiddenHttpHandler = null;
+        private static IHttpHandler NotFoundHttpHandler = null;
         private static readonly IHttpHandler StaticFilesHandler = new StaticFileHandler();
-        private static readonly bool IsIntegratedPipeline = false;
-        private static readonly bool HostAutoRedirectsDirs = false;
+        private static bool IsIntegratedPipeline = false;
+        private static bool HostAutoRedirectsDirs = false;
 
         [ThreadStatic]
         public static string DebugLastHandlerArgs;
 
-        static HttpHandlerFactory()
+        internal static void Init()
         {
             try
             {
-
 #if !NETSTANDARD1_6
                 //MONO doesn't implement this property
                 var pi = typeof(HttpRuntime).GetProperty("UsingIntegratedPipeline");
                 if (pi != null)
                 {
-                    IsIntegratedPipeline = (bool)pi.GetGetMethod().Invoke(null, TypeConstants.EmptyObjectArray);
+                    IsIntegratedPipeline = (bool) pi.GetGetMethod().Invoke(null, TypeConstants.EmptyObjectArray);
                 }
 #endif
-
                 var appHost = HostContext.AppHost;
                 var config = appHost.Config;
 
@@ -58,7 +56,7 @@ namespace ServiceStack
                 var rootFiles = appHost.VirtualFileSources.GetRootFiles().ToList();
                 foreach (var file in rootFiles)
                 {
-                    var fileNameLower = file.Name.ToLower();
+                    var fileNameLower = file.Name.ToLowerInvariant();
                     if (DefaultRootFileName == null && config.DefaultDocuments.Contains(fileNameLower))
                     {
                         //Can't serve Default.aspx pages so ignore and allow for next default document
@@ -76,19 +74,19 @@ namespace ServiceStack
 
                 foreach (var dir in appHost.VirtualFileSources.GetRootDirectories())
                 {
-                    WebHostRootFileNames.Add(dir.Name.ToLower());
+                    WebHostRootFileNames.Add(dir.Name.ToLowerInvariant());
                 }
 
                 if (!string.IsNullOrEmpty(config.DefaultRedirectPath))
                 {
-                    DefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.DefaultRedirectPath };
-                    NonRootModeDefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.DefaultRedirectPath };
+                    DefaultHttpHandler = new RedirectHttpHandler {RelativeUrl = config.DefaultRedirectPath};
+                    NonRootModeDefaultHttpHandler = new RedirectHttpHandler {RelativeUrl = config.DefaultRedirectPath};
                 }
 
                 if (DefaultHttpHandler == null && !string.IsNullOrEmpty(config.MetadataRedirectPath))
                 {
-                    DefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.MetadataRedirectPath };
-                    NonRootModeDefaultHttpHandler = new RedirectHttpHandler { RelativeUrl = config.MetadataRedirectPath };
+                    DefaultHttpHandler = new RedirectHttpHandler {RelativeUrl = config.MetadataRedirectPath};
+                    NonRootModeDefaultHttpHandler = new RedirectHttpHandler {RelativeUrl = config.MetadataRedirectPath};
                 }
 
                 if (DefaultHttpHandler == null)
@@ -128,7 +126,6 @@ namespace ServiceStack
                         DefaultHandler = debugDefaultHandler,
                     };
                 }
-
             }
             catch (Exception ex)
             {
@@ -313,11 +310,22 @@ namespace ServiceStack
 
         // no handler registered 
         // serve the file from the filesystem, restricting to a safelist of extensions
-        private static bool ShouldAllow(string filePath)
+        public static bool ShouldAllow(string filePath)
         {
-            var fileExt = System.IO.Path.GetExtension(filePath);
-            if (string.IsNullOrEmpty(fileExt)) return false;
-            return HostContext.Config.AllowFileExtensions.Contains(fileExt.Substring(1));
+            var parts = filePath.SplitOnLast('.');
+            if (parts.Length == 1 || string.IsNullOrEmpty(parts[1]))
+                return false;
+
+            var fileExt = parts[1];
+            if (HostContext.Config.AllowFileExtensions.Contains(fileExt))
+                return true;
+
+            foreach (var pathGlob in HostContext.Config.AllowFilePaths)
+            {
+                if (filePath.GlobPath(pathGlob))
+                    return true;
+            }
+            return false;
         }
 
         public static IHttpHandler GetHandlerForPathInfo(string httpMethod, string pathInfo, string requestPath, string filePath)

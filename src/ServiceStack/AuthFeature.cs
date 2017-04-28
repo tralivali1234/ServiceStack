@@ -40,12 +40,15 @@ namespace ServiceStack
 
         public bool GenerateNewSessionCookiesOnAuthentication { get; set; }
 
+        [Obsolete("Please update your App to not rely on this behavior as we plan on removing it eventually")]
+        public bool SkipAuthenticationIfAlreadyAuthenticated { get; set; }
+
         public TimeSpan? SessionExpiry { get; set; }
         public TimeSpan? PermanentSessionExpiry { get; set; }
 
         public int? MaxLoginAttempts { get; set; }
 
-        public Func<IServiceBase, Authenticate, AuthenticateResponse, object> AuthResponseDecorator { get; set; }
+        public Func<AuthFilterContext, object> AuthResponseDecorator { get; set; }
 
         public bool IncludeAssignRoleServices
         {

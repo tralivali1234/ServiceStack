@@ -23,7 +23,9 @@ namespace ServiceStack
 
         public static ServiceStackHost AppHost => ServiceStackHost.Instance;
 
-        private static ServiceStackHost AssertAppHost()
+        public static AsyncContext Async = new AsyncContext();
+
+        internal static ServiceStackHost AssertAppHost()
         {
             if (ServiceStackHost.Instance == null)
                 throw new ConfigurationErrorsException(

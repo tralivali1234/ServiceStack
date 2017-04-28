@@ -597,18 +597,47 @@ namespace ServiceStack
             var format = httpReq.QueryString[Keywords.Format];
             if (format == null)
             {
+                // 3 or 4 letters in URI between slashes `/[xml|json|html|jsv|csv]/[reply|oneway]/[servicename]`
+                //see https://github.com/ServiceStack/ServiceStack/wiki/Formats#default-endpoint
                 const int formatMaxLength = 4;
-                var pi = httpReq.PathInfo;
-                if (pi == null || pi.Length <= formatMaxLength) return null;
-                if (pi[0] == '/') pi = pi.Substring(1);
-                format = pi.LeftPart('/');
-                if (format.Length > formatMaxLength) return null;
-            }
+                const int formatMinLength = 3;
+                int start = 0, end = -1;
 
-            format = format.LeftPart('.').ToLower();
-            if (format.Contains("json")) return MimeTypes.Json;
-            if (format.Contains("xml")) return MimeTypes.Xml;
-            if (format.Contains("jsv")) return MimeTypes.Jsv;
+                var pi = httpReq.PathInfo;
+                if (pi == null || pi.Length < formatMinLength) return null;
+
+                if (pi[0] == '/') start = 1;
+                end = pi.IndexOf('/', start, Math.Min(pi.Length - start, formatMaxLength));
+
+                if (end == -1) 
+                {
+                    if (pi.Length - start > formatMaxLength)
+                        return null;
+                    else
+                        end = pi.Length;
+                } else if (end - start > formatMaxLength) return null;
+
+                //check for xml or jsv content-type
+                if (end - start == 3)
+                {
+                    if (String.Compare(pi, start, "xml", 0, "xml".Length, StringComparison.OrdinalIgnoreCase) == 0)
+                         return MimeTypes.Xml;
+                    if (String.Compare(pi, start, "jsv", 0, "jsv".Length, StringComparison.OrdinalIgnoreCase) == 0)
+                         return MimeTypes.Jsv;
+                } else if (end - start == 4) //check for "json" content-type
+                {
+                    if (String.Compare(pi, start, "json", 0, "json".Length, StringComparison.OrdinalIgnoreCase) == 0)
+                         return MimeTypes.Json;
+                }
+
+                format = pi.Substring(start, end - start).ToLowerInvariant();
+            } else 
+            {
+                format = format.LeftPart('.').ToLowerInvariant();
+                if (format.Contains("json")) return MimeTypes.Json;
+                if (format.Contains("xml")) return MimeTypes.Xml;
+                if (format.Contains("jsv")) return MimeTypes.Jsv;
+            }
 
             string contentType;
             HostContext.ContentTypes.ContentTypeFormats.TryGetValue(format, out contentType);
@@ -964,27 +993,6 @@ namespace ServiceStack
         }
 #endif
 
-        public static void SetOperationName(this IRequest httpReq, string operationName)
-        {
-            if (httpReq.OperationName == null)
-            {
-#if !NETSTANDARD1_6
-                var aspReq = httpReq as AspNetRequest;
-                if (aspReq != null)
-                {
-                    aspReq.OperationName = operationName;
-                    return;
-                }
-
-                var listenerReq = httpReq as ListenerRequest;
-                if (listenerReq != null)
-                {
-                    listenerReq.OperationName = operationName;
-                }
-#endif
-            }
-        }
-
         public static Type GetOperationType(this IRequest req)
         {
             if (req.Dto != null)
@@ -1023,6 +1031,11 @@ namespace ServiceStack
             object route;
             req.Items.TryGetValue(Keywords.Route, out route);
             return route as RestPath;
+        }
+
+        public static bool IsHtml(this IRequest req)
+        {
+            return req.ResponseContentType.MatchesContentType(MimeTypes.Html);
         }
     }
 }

@@ -15,6 +15,7 @@ using Microsoft.Extensions.Primitives;
 using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceStack.Configuration;
+using ServiceStack.NetCore;
 
 namespace ServiceStack.Host.NetCore
 {
@@ -158,12 +159,7 @@ namespace ServiceStack.Host.NetCore
                 if (headers != null)
                     return headers;
 
-                var nvc = new NameValueCollection();
-                foreach (var header in request.Headers)
-                {
-                    nvc.Add(header.Key, header.Value);
-                }
-                return headers = new NameValueCollectionWrapper(nvc);
+                return headers = new NetCoreHeadersCollection(request.Headers);
             }
         }
 
@@ -175,13 +171,7 @@ namespace ServiceStack.Host.NetCore
                 if (queryString != null)
                     return queryString;
 
-                var nvc = new NameValueCollection();
-                foreach (var query in request.Query)
-                {
-                    foreach (var value in query.Value)
-                        nvc.Add(query.Key, value);
-                }
-                return queryString = new NameValueCollectionWrapper(nvc);
+                return queryString = new NetCoreQueryStringCollection(request.Query);
             }
         }
 
@@ -234,7 +224,7 @@ namespace ServiceStack.Host.NetCore
 
         public string PathInfo { get; set; }
 
-        public Stream InputStream => BufferedStream ?? request.Body;
+        public Stream InputStream => this.GetInputStream(BufferedStream ?? request.Body);
 
         public long ContentLength => request.ContentLength.GetValueOrDefault();
 

@@ -9,6 +9,7 @@ using Funq;
 using ServiceStack.Configuration;
 using ServiceStack.Logging;
 using ServiceStack.Messaging;
+using ServiceStack.Serialization;
 using ServiceStack.Text;
 using ServiceStack.Web;
 
@@ -169,7 +170,9 @@ namespace ServiceStack.Host
                         this.RequestTypeFactoryMap[requestType] = req =>
                         {
                             var restPath = req.GetRoute();
-                            var request = RestHandler.CreateRequest(req, restPath, req.GetRequestParams(), requestType.CreateInstance());
+                            var request = restPath != null 
+                                ? RestHandler.CreateRequest(req, restPath, req.GetRequestParams(), requestType.CreateInstance())
+                                : KeyValueDataContractDeserializer.Instance.Parse(req.QueryString, requestType);
 
                             var rawReq = (IRequiresRequestStream)request;
                             rawReq.RequestStream = req.InputStream;
@@ -273,6 +276,7 @@ namespace ServiceStack.Host
             var matchUsingPathParts = RestPath.GetPathPartsForMatching(pathInfo);
 
             List<RestPath> firstMatches;
+            IRestPath bestMatch = null;
 
             var yieldedHashMatches = RestPath.GetFirstMatchHashKeys(matchUsingPathParts);
             foreach (var potentialHashMatch in yieldedHashMatches)
@@ -283,15 +287,15 @@ namespace ServiceStack.Host
                 foreach (var restPath in firstMatches)
                 {
                     var score = restPath.MatchScore(httpMethod, matchUsingPathParts);
-                    if (score > bestScore) bestScore = score;
+                    if (score > bestScore) 
+                    {
+                        bestScore = score;
+                        bestMatch = restPath;
+                    }
                 }
                 if (bestScore > 0)
                 {
-                    foreach (var restPath in firstMatches)
-                    {
-                        if (bestScore == restPath.MatchScore(httpMethod, matchUsingPathParts))
-                            return restPath;
-                    }
+                    return bestMatch;
                 }
             }
 
@@ -304,15 +308,15 @@ namespace ServiceStack.Host
                 foreach (var restPath in firstMatches)
                 {
                     var score = restPath.MatchScore(httpMethod, matchUsingPathParts);
-                    if (score > bestScore) bestScore = score;
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestMatch = restPath;
+                    }
                 }
                 if (bestScore > 0)
                 {
-                    foreach (var restPath in firstMatches)
-                    {
-                        if (bestScore == restPath.MatchScore(httpMethod, matchUsingPathParts))
-                            return restPath;
-                    }
+                    return bestMatch;
                 }
             }
 
@@ -420,7 +424,7 @@ namespace ServiceStack.Host
                     var taskResponse = response as Task;
                     if (taskResponse != null)
                     {
-                        taskResponse.ContinueWith(task => appHost.Release(service));
+                        HostContext.Async.ContinueWith(request, taskResponse, task => appHost.Release(service));
                     }
                     else
                     {
@@ -527,6 +531,7 @@ namespace ServiceStack.Host
         {
             if (applyFilters)
             {
+                requestDto = appHost.ApplyRequestConverters(req, requestDto);
                 if (appHost.ApplyRequestFilters(req, req.Response, requestDto))
                     return null;
             }
@@ -555,6 +560,7 @@ namespace ServiceStack.Host
 
             if (applyFilters)
             {
+                requestDto = appHost.ApplyRequestConverters(req, requestDto);
                 if (appHost.ApplyRequestFilters(req, req.Response, requestDto))
                     return null;
             }
@@ -576,13 +582,20 @@ namespace ServiceStack.Host
                 AssertServiceRestrictions(requestType, req.RequestAttributes);
             }
 
+            if (applyFilters)
+            {
+                requestDto = appHost.ApplyRequestConverters(req, requestDto);
+                if (appHost.ApplyRequestFilters(req, req.Response, requestDto))
+                    return TypeConstants.EmptyTask;
+            }
+
             var handlerFn = GetService(requestType);
             var response = handlerFn(req, requestDto);
 
             var taskObj = response as Task<object>;
             if (taskObj != null)
             {
-                return taskObj.ContinueWith(t =>
+                return HostContext.Async.ContinueWith(req, taskObj, t => 
                 {
                     var taskArray = t.Result as Task[];
                     if (taskArray != null)
@@ -680,7 +693,7 @@ namespace ServiceStack.Host
                 Task firstAsyncError = null;
 
                 //execute each async service sequentially
-                return dtosList.EachAsync((dto, i) =>
+                var task = dtosList.EachAsync((dto, i) =>
                 {
                     //short-circuit on first error and don't exec any more handlers
                     if (firstAsyncError != null)
@@ -697,8 +710,8 @@ namespace ServiceStack.Host
                         return firstAsyncError = asyncResponses[i];
                     }
                     return asyncResponses[i];
-                })
-                .ContinueWith(x => {
+                });
+                return HostContext.Async.ContinueWith(req, task, x => {
                     if (firstAsyncError != null)
                         return (object)firstAsyncError;
 

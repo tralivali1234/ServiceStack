@@ -1,6 +1,6 @@
 #if !NETSTANDARD1_6
 
-//Copyright (c) Service Stack LLC. All Rights Reserved.
+//Copyright (c) ServiceStack, Inc. All Rights Reserved.
 //License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
 using System;
@@ -283,7 +283,7 @@ namespace ServiceStack.Host.AspNet
         }
 
         public MemoryStream BufferedStream { get; set; }
-        public Stream InputStream => BufferedStream ?? request.InputStream;
+        public Stream InputStream => this.GetInputStream(BufferedStream ?? request.InputStream);
 
         public long ContentLength => request.ContentLength;
 

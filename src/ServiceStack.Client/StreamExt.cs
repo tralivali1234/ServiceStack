@@ -1,4 +1,4 @@
-// Copyright (c) Service Stack LLC. All Rights Reserved.
+// Copyright (c) ServiceStack, Inc. All Rights Reserved.
 // License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
 using System;
@@ -28,6 +28,17 @@ namespace ServiceStack
 
             if (compressionType == CompressionTypes.GZip)
                 return GZip(text);
+
+            throw new NotSupportedException(compressionType);
+        }
+
+        public static Stream CompressStream(this Stream stream, string compressionType)
+        {
+            if (compressionType == CompressionTypes.Deflate)
+                return DeflateProvider.DeflateStream(stream);
+
+            if (compressionType == CompressionTypes.GZip)
+                return GZipProvider.GZipStream(stream);
 
             throw new NotSupportedException(compressionType);
         }

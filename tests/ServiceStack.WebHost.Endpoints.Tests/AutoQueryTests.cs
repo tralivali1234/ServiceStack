@@ -198,16 +198,16 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         };
 
         public static Movie[] SeedMovies = new[] {
-			new Movie { ImdbId = "tt0111161", Title = "The Shawshank Redemption", Score = 9.2m, Director = "Frank Darabont", ReleaseDate = new DateTime(1995,2,17), TagLine = "Fear can hold you prisoner. Hope can set you free.", Genres = new List<string>{"Crime","Drama"}, Rating = "R", },
-			new Movie { ImdbId = "tt0068646", Title = "The Godfather", Score = 9.2m, Director = "Francis Ford Coppola", ReleaseDate = new DateTime(1972,3,24), TagLine = "An offer you can't refuse.", Genres = new List<string> {"Crime","Drama", "Thriller"}, Rating = "R", },
-			new Movie { ImdbId = "tt1375666", Title = "Inception", Score = 9.2m, Director = "Christopher Nolan", ReleaseDate = new DateTime(2010,7,16), TagLine = "Your mind is the scene of the crime", Genres = new List<string>{"Action", "Mystery", "Sci-Fi", "Thriller"}, Rating = "PG-13", },
-			new Movie { ImdbId = "tt0071562", Title = "The Godfather: Part II", Score = 9.0m, Director = "Francis Ford Coppola", ReleaseDate = new DateTime(1974,12,20), Genres = new List<string> {"Crime","Drama", "Thriller"}, Rating = "R", },
-			new Movie { ImdbId = "tt0060196", Title = "The Good, the Bad and the Ugly", Score = 9.0m, Director = "Sergio Leone", ReleaseDate = new DateTime(1967,12,29), TagLine = "They formed an alliance of hate to steal a fortune in dead man's gold", Genres = new List<string>{"Adventure","Western"}, Rating = "R", },
-			new Movie { ImdbId = "tt0114709", Title = "Toy Story", Score = 8.3m, Director = "John Lasseter", ReleaseDate = new DateTime(1995,11,22), TagLine = "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him as top toy in a boy's room.", Genres = new List<string>{"Animation","Adventure","Comedy"}, Rating = "G", },
-			new Movie { ImdbId = "tt2294629", Title = "Frozen", Score = 7.8m, Director = "Chris Buck", ReleaseDate = new DateTime(2013,11,27), TagLine = "Fearless optimist Anna teams up with Kristoff in an epic journey, encountering Everest-like conditions, and a hilarious snowman named Olaf", Genres = new List<string>{"Animation","Adventure","Comedy"}, Rating = "PG", },
-			new Movie { ImdbId = "tt1453405", Title = "Monsters University", Score = 7.4m, Director = "Dan Scanlon", ReleaseDate = new DateTime(2013,06,21), TagLine = "A look at the relationship between Mike and Sulley during their days at Monsters University -- when they weren't necessarily the best of friends.", Genres = new List<string>{"Animation","Adventure","Comedy"}, Rating = "G", },
-			new Movie { ImdbId = "tt0468569", Title = "The Dark Knight", Score = 9.0m, Director = "Christopher Nolan", ReleaseDate = new DateTime(2008,07,18), TagLine = "When Batman, Gordon and Harvey Dent launch an assault on the mob, they let the clown out of the box, the Joker, bent on turning Gotham on itself and bringing any heroes down to his level.", Genres = new List<string>{"Action","Crime","Drama"}, Rating = "PG-13", },
-			new Movie { ImdbId = "tt0109830", Title = "Forrest Gump", Score = 8.8m, Director = "Robert Zemeckis", ReleaseDate = new DateTime(1996,07,06), TagLine = "Forrest Gump, while not intelligent, has accidentally been present at many historic moments, but his true love, Jenny Curran, eludes him.", Genres = new List<string>{"Drama","Romance"}, Rating = "PG-13", },
+            new Movie { ImdbId = "tt0111161", Title = "The Shawshank Redemption", Score = 9.2m, Director = "Frank Darabont", ReleaseDate = new DateTime(1995,2,17), TagLine = "Fear can hold you prisoner. Hope can set you free.", Genres = new List<string>{"Crime","Drama"}, Rating = "R", },
+            new Movie { ImdbId = "tt0068646", Title = "The Godfather", Score = 9.2m, Director = "Francis Ford Coppola", ReleaseDate = new DateTime(1972,3,24), TagLine = "An offer you can't refuse.", Genres = new List<string> {"Crime","Drama", "Thriller"}, Rating = "R", },
+            new Movie { ImdbId = "tt1375666", Title = "Inception", Score = 9.2m, Director = "Christopher Nolan", ReleaseDate = new DateTime(2010,7,16), TagLine = "Your mind is the scene of the crime", Genres = new List<string>{"Action", "Mystery", "Sci-Fi", "Thriller"}, Rating = "PG-13", },
+            new Movie { ImdbId = "tt0071562", Title = "The Godfather: Part II", Score = 9.0m, Director = "Francis Ford Coppola", ReleaseDate = new DateTime(1974,12,20), Genres = new List<string> {"Crime","Drama", "Thriller"}, Rating = "R", },
+            new Movie { ImdbId = "tt0060196", Title = "The Good, the Bad and the Ugly", Score = 9.0m, Director = "Sergio Leone", ReleaseDate = new DateTime(1967,12,29), TagLine = "They formed an alliance of hate to steal a fortune in dead man's gold", Genres = new List<string>{"Adventure","Western"}, Rating = "R", },
+            new Movie { ImdbId = "tt0114709", Title = "Toy Story", Score = 8.3m, Director = "John Lasseter", ReleaseDate = new DateTime(1995,11,22), TagLine = "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him as top toy in a boy's room.", Genres = new List<string>{"Animation","Adventure","Comedy"}, Rating = "G", },
+            new Movie { ImdbId = "tt2294629", Title = "Frozen", Score = 7.8m, Director = "Chris Buck", ReleaseDate = new DateTime(2013,11,27), TagLine = "Fearless optimist Anna teams up with Kristoff in an epic journey, encountering Everest-like conditions, and a hilarious snowman named Olaf", Genres = new List<string>{"Animation","Adventure","Comedy"}, Rating = "PG", },
+            new Movie { ImdbId = "tt1453405", Title = "Monsters University", Score = 7.4m, Director = "Dan Scanlon", ReleaseDate = new DateTime(2013,06,21), TagLine = "A look at the relationship between Mike and Sulley during their days at Monsters University -- when they weren't necessarily the best of friends.", Genres = new List<string>{"Animation","Adventure","Comedy"}, Rating = "G", },
+            new Movie { ImdbId = "tt0468569", Title = "The Dark Knight", Score = 9.0m, Director = "Christopher Nolan", ReleaseDate = new DateTime(2008,07,18), TagLine = "When Batman, Gordon and Harvey Dent launch an assault on the mob, they let the clown out of the box, the Joker, bent on turning Gotham on itself and bringing any heroes down to his level.", Genres = new List<string>{"Action","Crime","Drama"}, Rating = "PG-13", },
+            new Movie { ImdbId = "tt0109830", Title = "Forrest Gump", Score = 8.8m, Director = "Robert Zemeckis", ReleaseDate = new DateTime(1996,07,06), TagLine = "Forrest Gump, while not intelligent, has accidentally been present at many historic moments, but his true love, Jenny Curran, eludes him.", Genres = new List<string>{"Drama","Romance"}, Rating = "PG-13", },
         };
 
         public static PagingTest[] SeedPagingTest = 250.Times(i => new PagingTest { Id = i, Name = "Name" + i, Value = i % 2 }).ToArray();
@@ -304,14 +304,17 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public string RockstarGenreName { get; set; }
     }
 
-
-
     public class QueryOverridedRockstars : QueryDb<Rockstar>
     {
         public int? Age { get; set; }
     }
 
     public class QueryOverridedCustomRockstars : QueryDb<Rockstar, CustomRockstar>
+    {
+        public int? Age { get; set; }
+    }
+
+    public class QueryCaseInsensitiveOrderBy : QueryDb<Rockstar>
     {
         public int? Age { get; set; }
     }
@@ -378,6 +381,15 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
         [QueryDbField(Term = QueryTerm.Or)]
         public string LastName { get; set; }
+    }
+
+    public class QueryFieldsImplicitConventions : QueryDb<Rockstar>
+    {
+        [QueryDbField(Term = QueryTerm.Or)]
+        public string FirstNameContains { get; set; }
+
+        [QueryDbField(Term = QueryTerm.Or)]
+        public string LastNameEndsWith { get; set; }
     }
 
     [QueryDb(QueryTerm.Or)]
@@ -570,6 +582,15 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             return AutoQuery.Execute(dto, q);
         }
 
+        public object Any(QueryCaseInsensitiveOrderBy dto)
+        {
+            var q = AutoQuery.CreateQuery(dto, Request);
+            if (q.OrderByExpression != null)
+                q.OrderByExpression += " COLLATE NOCASE";
+
+            return AutoQuery.Execute(dto, q);
+        }
+
         public object Any(StreamMovies dto)
         {
             var q = AutoQuery.CreateQuery(dto, Request.GetRequestParams());
@@ -723,6 +744,14 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             Assert.That(response.Offset, Is.EqualTo(0));
             Assert.That(response.Total, Is.EqualTo(TotalRockstars));
             Assert.That(response.Results.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Can_execute_overridden_basic_query_with_case_insensitive_orderBy()
+        {
+            var response = client.Get(new QueryCaseInsensitiveOrderBy { Age = 27, OrderBy = "FirstName" });
+
+            Assert.That(response.Results.Count, Is.EqualTo(3));
         }
 
         [Test]
@@ -1098,6 +1127,16 @@ namespace ServiceStack.WebHost.Endpoints.Tests
                 .GetJsonFromUrl()
                 .FromJson<QueryResponse<Rockstar>>();
             Assert.That(response.Results.Count, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Does_retain_implicit_convention_when_not_overriding_template_or_ValueFormat()
+        {
+            var response = client.Get(new QueryFieldsImplicitConventions { FirstNameContains = "im" });
+            Assert.That(response.Results.Count, Is.EqualTo(2));
+
+            response = client.Get(new QueryFieldsImplicitConventions { LastNameEndsWith = "son" });
+            Assert.That(response.Results.Count, Is.EqualTo(2));
         }
 
         [Test]

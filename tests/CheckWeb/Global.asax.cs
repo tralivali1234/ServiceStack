@@ -8,6 +8,7 @@ using Check.ServiceModel.Types;
 using Funq;
 using ServiceStack;
 using ServiceStack.Admin;
+using ServiceStack.Api.OpenApi;
 using ServiceStack.Api.Swagger;
 using ServiceStack.Auth;
 using ServiceStack.Data;
@@ -29,7 +30,7 @@ namespace CheckWeb
         /// Initializes a new instance of the <see cref="AppHost"/> class.
         /// </summary>
         public AppHost()
-            : base("CheckWeb", typeof(ErrorsService).Assembly) {}
+            : base("CheckWeb", typeof(ErrorsService).Assembly, typeof(HtmlServices).Assembly) {}
 
         /// <summary>
         /// Configure the Web Application host.
@@ -48,6 +49,7 @@ namespace CheckWeb
             {
                 //UseHttpsLinks = true,
                 AppendUtf8CharsetOnContentTypes = new HashSet<string> { MimeTypes.Html },
+                UseCamelCase = true,
                 //AllowJsConfig = false,
 
                 // Set to return JSON if no request content type is defined
@@ -137,6 +139,8 @@ namespace CheckWeb
 
             // Configure ServiceStack Razor views.
             this.ConfigureView(container);
+
+            this.StartUpErrors.Add(new ResponseStatus("Mock", "Startup Error"));
         }
 
         public static Rockstar[] GetRockstars()
@@ -212,6 +216,7 @@ namespace CheckWeb
             Plugins.Add(new ValidationFeature());
 
             container.RegisterValidators(typeof(AppHost).Assembly);
+            container.RegisterValidators(typeof(ThrowValidationValidator).Assembly);
         }
 
         /// <summary>
@@ -225,12 +230,14 @@ namespace CheckWeb
             razor.Deny.RemoveAt(0);
             Plugins.Add(razor);
 
+            Plugins.Add(new OpenApiFeature());
+
             // Enable support for Swagger API browser
-            Plugins.Add(new SwaggerFeature
-            {
-                UseBootstrapTheme = true, 
-                LogoUrl = "//lh6.googleusercontent.com/-lh7Gk4ZoVAM/AAAAAAAAAAI/AAAAAAAAAAA/_0CgCb4s1e0/s32-c/photo.jpg"
-            });
+            //Plugins.Add(new SwaggerFeature
+            //{
+            //    UseBootstrapTheme = true,
+            //    LogoUrl = "//lh6.googleusercontent.com/-lh7Gk4ZoVAM/AAAAAAAAAAI/AAAAAAAAAAA/_0CgCb4s1e0/s32-c/photo.jpg"
+            //});
             //Plugins.Add(new CorsFeature()); // Uncomment if the services to be available from external sites
         }
 
@@ -280,6 +287,18 @@ namespace CheckWeb
         }
     }
 
+    [Route("/test/html")]
+    public class TestHtml
+    {
+        public string Name { get; set; }
+    }
+
+    [HtmlOnly]
+    public class HtmlServices : Service
+    {
+        public object Any(TestHtml request) => request;
+    }
+
     public class Global : System.Web.HttpApplication
     {
         protected void Application_Start(object sender, EventArgs e)
@@ -296,6 +315,16 @@ namespace CheckWeb
         protected void Application_EndRequest(object src, EventArgs e)
         {
             Profiler.Stop();
+        }
+    }
+
+    public static class HtmlHelpers
+    {
+        public static MvcHtmlString DisplayPrice(this HtmlHelper html, decimal price)
+        {
+            return MvcHtmlString.Create(price == 0
+                ? "<span>FREE!</span>"
+                : $"{price:C2}");
         }
     }
 }

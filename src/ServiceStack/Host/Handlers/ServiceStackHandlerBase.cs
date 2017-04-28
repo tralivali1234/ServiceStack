@@ -1,8 +1,9 @@
-//Copyright (c) Service Stack LLC. All Rights Reserved.
+//Copyright (c) ServiceStack, Inc. All Rights Reserved.
 //License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
 using System;
 using System.Collections.Generic;
+using System.IO.Compression;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Text;
@@ -39,7 +40,7 @@ namespace ServiceStack.Host.Handlers
         public abstract object CreateRequest(IRequest request, string operationName);
         public abstract object GetResponse(IRequest request, object requestDto);
 
-        public Task HandleResponse(object response, Func<object, Task> callback, Func<Exception, Task> errorCallback)
+        public Task HandleResponse(object response, Func<object, Task> callback)
         {
             try
             {
@@ -55,10 +56,10 @@ namespace ServiceStack.Host.Handlers
                         .Continue(task =>
                         {
                             if (task.IsFaulted)
-                                return errorCallback(task.Exception.UnwrapIfSingleException());
+                                return task;
 
                             if (task.IsCanceled)
-                                return errorCallback(new OperationCanceledException("The async Task operation was cancelled"));
+                                return new OperationCanceledException("The async Task operation was cancelled").AsTaskException();
 
                             if (task.IsCompleted)
                             {
@@ -90,7 +91,7 @@ namespace ServiceStack.Host.Handlers
                                 return callback(batchedResponses);
                             }
 
-                            return errorCallback(new InvalidOperationException("Unknown Task state"));
+                            return new InvalidOperationException("Unknown Task state").AsTaskException();
                         });
                 }
 
@@ -98,7 +99,7 @@ namespace ServiceStack.Host.Handlers
             }
             catch (Exception ex)
             {
-                return errorCallback(ex);
+                return ex.AsTaskException();
             }
         }
 
@@ -128,12 +129,19 @@ namespace ServiceStack.Host.Handlers
         {
             try
             {
-                if (!string.IsNullOrEmpty(contentType) && httpReq.ContentLength > 0)
+                if (!string.IsNullOrEmpty(contentType))
                 {
-                    var deserializer = HostContext.ContentTypes.GetStreamDeserializer(contentType);
-                    if (deserializer != null)
+                    //.NET Core HttpClient Zip Content-Length omission is reported as 0
+                    var hasContentBody = httpReq.ContentLength > 0
+                        || (httpReq.Verb.HasRequestBody() && httpReq.GetContentEncoding() != null);
+
+                    if (hasContentBody)
                     {
-                        return deserializer(requestType, httpReq.InputStream);
+                        var deserializer = HostContext.ContentTypes.GetStreamDeserializer(contentType);
+                        if (deserializer != null)
+                        {
+                            return deserializer(requestType, httpReq.InputStream);
+                        }
                     }
                 }
             }

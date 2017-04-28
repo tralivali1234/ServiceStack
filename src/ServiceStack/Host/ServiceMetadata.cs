@@ -68,7 +68,7 @@ namespace ServiceStack.Host
             };
 
             this.OperationsMap[requestType] = operation;
-            this.OperationNamesMap[operation.Name.ToLower()] = operation;
+            this.OperationNamesMap[operation.Name.ToLowerInvariant()] = operation;
             if (responseType != null)
             {
                 this.ResponseTypes.Add(responseType);
@@ -80,6 +80,7 @@ namespace ServiceStack.Host
                 .Count(x => x.ServiceType.GetAssembly() != typeof(Service).GetAssembly()
                 && x.ServiceType.FullName != "ServiceStack.Api.Swagger.SwaggerApiService"
                 && x.ServiceType.FullName != "ServiceStack.Api.Swagger.SwaggerResourcesService"
+                && x.ServiceType.FullName != "ServiceStack.Api.OpenApi.OpenApiService"
                 && x.ServiceType.Name != "__AutoQueryServices");
 
             LicenseUtils.AssertValidUsage(LicenseFeature.ServiceStack, QuotaType.Operations, nonCoreServicesCount);
@@ -143,7 +144,7 @@ namespace ServiceStack.Host
         public Type GetOperationType(string operationTypeName)
         {
             Operation operation;
-            var opName = operationTypeName.ToLower();
+            var opName = operationTypeName.ToLowerInvariant();
             if (!OperationNamesMap.TryGetValue(opName, out operation))
             {
                 var arrayPos = opName.LastIndexOf('[');
@@ -296,7 +297,7 @@ namespace ServiceStack.Host
                 return true;
 
             Operation operation;
-            OperationNamesMap.TryGetValue(operationName.ToLower(), out operation);
+            OperationNamesMap.TryGetValue(operationName.ToLowerInvariant(), out operation);
             if (operation == null) return false;
 
             var canCall = HasImplementation(operation, format);
@@ -317,7 +318,7 @@ namespace ServiceStack.Host
                 return true;
 
             Operation operation;
-            OperationNamesMap.TryGetValue(operationName.ToLower(), out operation);
+            OperationNamesMap.TryGetValue(operationName.ToLowerInvariant(), out operation);
             if (operation == null) return false;
 
             var canCall = HasImplementation(operation, format);
@@ -450,7 +451,7 @@ namespace ServiceStack.Host
                     else if (p.IsArray())
                     {
                         var elType = p.Type.LeftPart('[');
-                        type = FindMetadataType(metadataTypes, elType);
+                        type = FindMetadataType(metadataTypes, elType, p.TypeNamespace);
                         if (type != null && !types.Contains(type))
                         {
                             types.Add(type);

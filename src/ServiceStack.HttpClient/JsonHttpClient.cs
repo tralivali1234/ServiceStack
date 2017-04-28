@@ -1,10 +1,11 @@
-﻿// Copyright (c) Service Stack LLC. All Rights Reserved.
+﻿// Copyright (c) ServiceStack, Inc. All Rights Reserved.
 // License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -39,6 +40,7 @@ namespace ServiceStack
         public string BaseUri { get; set; }
 
         public string Format { get; private set; }
+        public string RequestCompressionType { get; set; }
         public string ContentType = MimeTypes.Json;
 
         public string SyncReplyBaseUri { get; set; }
@@ -55,6 +57,8 @@ namespace ServiceStack
         public ICredentials Credentials { get; set; }
 
         public string BearerToken { get; set; }
+        public string RefreshToken { get; set; }
+        public string RefreshTokenUri { get; set; }
 
         public CancellationTokenSource CancelTokenSource { get; set; }
 
@@ -159,8 +163,65 @@ namespace ServiceStack
 
         private int activeAsyncRequests = 0;
 
+        internal sealed class GzipContent : HttpContent
+        {
+            private readonly HttpContent content;
+            public GzipContent(HttpContent content)
+            {
+                this.content = content;
+                foreach (var header in content.Headers)
+                {
+                    Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+                Headers.ContentEncoding.Add(CompressionTypes.GZip);
+            }
+
+            protected override async Task SerializeToStreamAsync(Stream stream, TransportContext context)
+            {
+                using (var zip = new GZipStream(stream, CompressionMode.Compress, true))
+                {
+                    await content.CopyToAsync(zip);
+                }
+            }
+
+            protected override bool TryComputeLength(out long length)
+            {
+                length = -1;
+                return false;
+            }
+        }
+        internal sealed class DeflateContent : HttpContent
+        {
+            private readonly HttpContent content;
+            public DeflateContent(HttpContent content)
+            {
+                this.content = content;
+                foreach (var header in content.Headers)
+                {
+                    Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+                Headers.ContentEncoding.Add(CompressionTypes.Deflate);
+            }
+
+            protected override async Task SerializeToStreamAsync(Stream stream, TransportContext context)
+            {
+                using (var zip = new DeflateStream(stream, CompressionMode.Compress, true))
+                {
+                    await content.CopyToAsync(zip);
+                }
+            }
+
+            protected override bool TryComputeLength(out long length)
+            {
+                length = -1;
+                return false;
+            }
+        }
+
         public Task<TResponse> SendAsync<TResponse>(string httpMethod, string absoluteUrl, object request, CancellationToken token = default(CancellationToken))
         {
+            var client = GetHttpClient();
+
             if (!httpMethod.HasRequestBody() && request != null)
             {
                 var queryString = QueryStringSerializer.SerializeToString(request);
@@ -181,8 +242,83 @@ namespace ServiceStack
                 }
             }
 
-            var client = GetHttpClient();
+            if (token == default(CancellationToken))
+            {
+                if (CancelTokenSource == null)
+                    CancelTokenSource = new CancellationTokenSource();
+                token = CancelTokenSource.Token;
+            }
 
+            var httpReq = CreateRequest(httpMethod, absoluteUrl, request);
+            var sendAsyncTask = client.SendAsync(httpReq, token);
+
+            if (typeof(TResponse) == typeof(HttpResponseMessage))
+            {
+                return (Task<TResponse>)(object)sendAsyncTask;
+            }
+
+            return sendAsyncTask
+                .ContinueWith(responseTask =>
+                {
+                    var httpRes = responseTask.Result;
+
+                    if (httpRes.StatusCode == HttpStatusCode.Unauthorized)
+                    {
+                        if (RefreshToken != null)
+                        {
+                            var refreshDto = new GetAccessToken { RefreshToken = RefreshToken };
+                            var uri = this.RefreshTokenUri ?? this.BaseUri.CombineWith(refreshDto.ToPostUrl());
+                            return this.PostAsync<GetAccessTokenResponse>(uri, refreshDto)
+                                .ContinueWith(t =>
+                                {
+                                    if (t.IsFaulted)
+                                    {
+                                        var refreshEx = t.Exception.UnwrapIfSingleException() as WebServiceException;
+                                        if (refreshEx != null)
+                                        {
+                                            throw new RefreshTokenException(refreshEx);
+                                        }
+                                        throw t.Exception;
+                                    }
+
+                                    var accessToken = t.Result?.AccessToken;
+                                    if (string.IsNullOrEmpty(accessToken))
+                                        throw new RefreshTokenException("Could not retrieve new AccessToken from: " + uri);
+
+                                    var refreshRequest = CreateRequest(httpMethod, absoluteUrl, request);
+                                    if (this.GetTokenCookie() != null)
+                                    {
+                                        this.SetTokenCookie(accessToken);
+                                    }
+                                    else
+                                    {
+                                        refreshRequest.AddBearerToken(this.BearerToken = accessToken);
+                                    }
+
+                                    return client.SendAsync(refreshRequest, token).ContinueWith(refreshTask => 
+                                            ConvertToResponse<TResponse>(refreshTask.Result, 
+                                                httpMethod, absoluteUrl, refreshRequest, token), 
+                                        token).Unwrap();
+
+                                }, token).Unwrap();
+                        }
+                        if (UserName != null && Password != null && client.DefaultRequestHeaders.Authorization == null)
+                        {
+                            AddBasicAuth(client);
+                            httpReq = CreateRequest(httpMethod, absoluteUrl, request);
+                            sendAsyncTask = client.SendAsync(httpReq, token);
+                            return sendAsyncTask.ContinueWith(t =>
+                                    ConvertToResponse<TResponse>(t.Result, httpMethod, absoluteUrl, request, token),
+                                token).Unwrap();
+                        }
+                    }
+
+                    return ConvertToResponse<TResponse>(httpRes, httpMethod, absoluteUrl, request, token);
+                }, token).Unwrap();
+        }
+
+        private HttpRequestMessage CreateRequest(string httpMethod, string absoluteUrl, object request)
+        {
             this.PopulateRequestMetadata(request);
 
             var httpReq = new HttpRequestMessage(new HttpMethod(httpMethod), absoluteUrl);
@@ -206,14 +342,29 @@ namespace ServiceStack
                     var bytes = request as byte[];
                     var stream = request as Stream;
                     if (str != null)
+                    {
                         httpReq.Content = new StringContent(str);
+                    }
                     else if (bytes != null)
+                    {
                         httpReq.Content = new ByteArrayContent(bytes);
+                    }
                     else if (stream != null)
+                    {
                         httpReq.Content = new StreamContent(stream);
+                    }
                     else
                     {
                         httpReq.Content = new StringContent(request.ToJson(), Encoding.UTF8, ContentType);
+                    }
+
+                    if (RequestCompressionType == CompressionTypes.Deflate)
+                    {
+                        httpReq.Content = new DeflateContent(httpReq.Content);
+                    }
+                    else if (RequestCompressionType == CompressionTypes.GZip)
+                    {
+                        httpReq.Content = new GzipContent(httpReq.Content);
                     }
                 }
             }
@@ -222,89 +373,79 @@ namespace ServiceStack
 
             Interlocked.Increment(ref activeAsyncRequests);
 
-            if (token == default(CancellationToken))
+            return httpReq;
+        }
+
+        private Task<TResponse> ConvertToResponse<TResponse>(HttpResponseMessage httpRes, string httpMethod, string absoluteUrl, object request, CancellationToken token)
+        {
+            ApplyWebResponseFilters(httpRes);
+
+            if (!httpRes.IsSuccessStatusCode && ExceptionFilter != null)
             {
-                if (CancelTokenSource == null)
-                    CancelTokenSource = new CancellationTokenSource();
-                token = CancelTokenSource.Token;
+                var cachedResponse = ExceptionFilter(httpRes, absoluteUrl, typeof(TResponse));
+                if (cachedResponse is TResponse)
+                    return Task.FromResult((TResponse) cachedResponse);
             }
 
-            var sendAsyncTask = client.SendAsync(httpReq, token);
-
-            if (typeof(TResponse) == typeof(HttpResponseMessage))
+            if (typeof(TResponse) == typeof(string))
             {
-                return (Task<TResponse>)(object)sendAsyncTask;
-            }
-
-            return sendAsyncTask
-                .ContinueWith(responseTask =>
-                {
-                    var httpRes = responseTask.Result;
-                    ApplyWebResponseFilters(httpRes);
-
-                    if (!httpRes.IsSuccessStatusCode && ExceptionFilter != null)
-                    {
-                        var cachedResponse = ExceptionFilter(httpRes, absoluteUrl, typeof(TResponse));
-                        if (cachedResponse is TResponse)
-                            return Task.FromResult((TResponse)cachedResponse);
-                    }
-
-                    if (typeof(TResponse) == typeof(string))
-                    {
-                        return httpRes.Content.ReadAsStringAsync().ContinueWith(task =>
-                        {
-                            ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
-
-                            var response = (TResponse)(object)task.Result;
-
-                            if (ResultsFilterResponse != null)
-                                ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
-
-                            return response;
-                        }, token);
-                    }
-                    if (typeof(TResponse) == typeof(byte[]))
-                    {
-                        return httpRes.Content.ReadAsByteArrayAsync().ContinueWith(task =>
-                        {
-                            ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
-
-                            var response = (TResponse)(object)task.Result;
-
-                            if (ResultsFilterResponse != null)
-                                ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
-
-                            return response;
-                        }, token);
-                    }
-                    if (typeof(TResponse) == typeof(Stream))
-                    {
-                        return httpRes.Content.ReadAsStreamAsync().ContinueWith(task =>
-                        {
-                            ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
-
-                            var response = (TResponse)(object)task.Result;
-
-                            if (ResultsFilterResponse != null)
-                                ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
-
-                            return response;
-                        }, token);
-                    }
-
-                    return httpRes.Content.ReadAsStringAsync().ContinueWith(task =>
+                return httpRes.Content.ReadAsStringAsync()
+                    .ContinueWith(task =>
                     {
                         ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
 
-                        var body = task.Result;
-                        var response = body.FromJson<TResponse>();
+                        var response = (TResponse) (object) task.Result;
 
                         if (ResultsFilterResponse != null)
                             ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
 
                         return response;
                     }, token);
-                }, token).Unwrap();
+            }
+            if (typeof(TResponse) == typeof(byte[]))
+            {
+                return httpRes.Content.ReadAsByteArrayAsync()
+                    .ContinueWith(task =>
+                    {
+                        ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
+
+                        var response = (TResponse) (object) task.Result;
+
+                        if (ResultsFilterResponse != null)
+                            ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
+
+                        return response;
+                    }, token);
+            }
+            if (typeof(TResponse) == typeof(Stream))
+            {
+                return httpRes.Content.ReadAsStreamAsync()
+                    .ContinueWith(task =>
+                    {
+                        ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
+
+                        var response = (TResponse) (object) task.Result;
+
+                        if (ResultsFilterResponse != null)
+                            ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
+
+                        return response;
+                    }, token);
+            }
+
+            return httpRes.Content.ReadAsStringAsync()
+                .ContinueWith(task =>
+                {
+                    ThrowIfError<TResponse>(task, httpRes, request, absoluteUrl, task.Result);
+
+                    var body = task.Result;
+                    var response = body.FromJson<TResponse>();
+
+                    if (ResultsFilterResponse != null)
+                        ResultsFilterResponse(httpRes, response, httpMethod, absoluteUrl, request);
+
+                    return response;
+                }, token);
         }
 
         private void DisposeCancelToken()
@@ -396,7 +537,7 @@ namespace ServiceStack
             responseHandler(httpRes, request, requestUri, response);
         }
 
-        public byte[] GetResponseBytes(object response)
+        public static byte[] GetResponseBytes(object response)
         {
             var stream = response as Stream;
             if (stream != null)
@@ -413,7 +554,8 @@ namespace ServiceStack
             return null;
         }
 
-        public void ThrowWebServiceException<TResponse>(HttpResponseMessage httpRes, object request, string requestUri, object response)
+        public static WebServiceException ToWebServiceException(
+            HttpResponseMessage httpRes, object response, Func<Stream, object> parseDtoFn)
         {
             if (log.IsDebugEnabled)
             {
@@ -435,11 +577,11 @@ namespace ServiceStack
                 var bytes = GetResponseBytes(response);
                 if (bytes != null)
                 {
-                    if (string.IsNullOrEmpty(contentType) || contentType.MatchesContentType(ContentType))
+                    if (string.IsNullOrEmpty(contentType) || contentType.MatchesContentType(MimeTypes.Json))
                     {
                         var stream = MemoryStreamFactory.GetStream(bytes);
                         serviceEx.ResponseBody = bytes.FromUtf8Bytes();
-                        serviceEx.ResponseDto = JsonSerializer.DeserializeFromStream<TResponse>(stream);
+                        serviceEx.ResponseDto = parseDtoFn?.Invoke(stream);
 
                         if (stream.CanRead)
                             stream.Dispose(); //alt ms throws when you dispose twice
@@ -453,7 +595,7 @@ namespace ServiceStack
             catch (Exception innerEx)
             {
                 // Oh, well, we tried
-                throw new WebServiceException(httpRes.ReasonPhrase, innerEx)
+                return new WebServiceException(httpRes.ReasonPhrase, innerEx)
                 {
                     StatusCode = (int)httpRes.StatusCode,
                     StatusDescription = httpRes.ReasonPhrase,
@@ -462,7 +604,15 @@ namespace ServiceStack
             }
 
             //Escape deserialize exception handling and throw here
-            throw serviceEx;
+            return serviceEx;
+        }
+
+        public void ThrowWebServiceException<TResponse>(HttpResponseMessage httpRes, object request, string requestUri, object response)
+        {
+            var webEx = ToWebServiceException(httpRes, response,
+                stream => JsonSerializer.DeserializeFromStream<TResponse>(stream));
+
+            throw webEx;
 
             //var authEx = ex as AuthenticationException;
             //if (authEx != null)
@@ -799,7 +949,7 @@ namespace ServiceStack
 
         public void Patch(IReturnVoid request)
         {
-            SendAsync<byte[]>(HttpMethods.Patch, ResolveTypedUrl(HttpMethods.Patch, request), null).WaitSyncResponse();
+            SendAsync<byte[]>(HttpMethods.Patch, ResolveTypedUrl(HttpMethods.Patch, request), request).WaitSyncResponse();
         }
 
         public TResponse Patch<TResponse>(IReturn<TResponse> request)
@@ -1003,6 +1153,14 @@ namespace ServiceStack
             return httpRes.Headers.TryGetValues(HttpHeaders.ContentType, out values) 
                 ? values.FirstOrDefault() 
                 : null;
+        }
+
+        public static void AddBearerToken(this HttpRequestMessage client, string bearerToken)
+        {
+            if (string.IsNullOrEmpty(bearerToken))
+                return;
+
+            client.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
         }
     }
 
